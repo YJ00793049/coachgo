@@ -1,0 +1,135 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Core user profile for both players and coaches.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "format": "email", "description": "Email address" },
+        "role": { "type": "string", "enum": ["player", "coach", "admin"], "description": "User role" },
+        "avatar_url": { "type": "string", "description": "URL to profile picture" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Timestamp of account creation" }
+      },
+      "required": ["name", "email", "role"]
+    },
+    "Coach": {
+      "title": "Coach",
+      "description": "Extended profile for coaches.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string", "description": "Reference to User ID" },
+        "specialty": { "type": "string", "enum": ["hitting", "pitching", "fielding", "strength"], "description": "Primary coaching discipline" },
+        "secondary_specialty": { "type": "string", "description": "Secondary coaching discipline" },
+        "bio": { "type": "string", "description": "Professional biography" },
+        "certifications": { "type": "array", "items": { "type": "string" }, "description": "List of certifications" },
+        "skills": { "type": "array", "items": { "type": "string" }, "description": "List of specific skills" },
+        "years_experience": { "type": "number", "description": "Years of coaching experience" },
+        "price_per_session": { "type": "number", "description": "Base price per session in USD" },
+        "rating": { "type": "number", "description": "Average star rating" },
+        "reviews": { "type": "number", "description": "Number of reviews" },
+        "availability": { "type": "object", "description": "Weekly availability schedule" },
+        "street_address": { "type": "string", "description": "Street address of the training facility" },
+        "city": { "type": "string", "description": "City of the training facility" },
+        "state": { "type": "string", "description": "State of the training facility" },
+        "zip_code": { "type": "string", "description": "ZIP code of the training facility" },
+        "photo_url": { "type": "string", "description": "URL to profile photo" },
+        "is_active": { "type": "boolean", "description": "Whether the coach profile is visible" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Timestamp of creation" }
+      },
+      "required": ["user_id", "specialty", "price_per_session"]
+    },
+    "Player": {
+      "title": "Player",
+      "description": "Extended profile for players.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string", "description": "Reference to User ID" },
+        "age": { "type": "number", "description": "Age of the player" },
+        "skill_level": { "type": "string", "enum": ["beginner", "developing", "competitive"], "description": "Current skill level" },
+        "primary_position": { "type": "string", "description": "Main baseball position" }
+      },
+      "required": ["user_id", "skill_level"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Session booking record.",
+      "type": "object",
+      "properties": {
+        "player_id": { "type": "string", "description": "User ID of the player" },
+        "coach_id": { "type": "string", "description": "User ID of the coach" },
+        "session_type": { "type": "string", "description": "Type of session booked" },
+        "date": { "type": "string", "format": "date", "description": "Date of the session" },
+        "time_slot": { "type": "string", "description": "Time of the session" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "completed", "cancelled"], "description": "Current status" },
+        "total_price": { "type": "number", "description": "Total price paid" },
+        "notes": { "type": "string", "description": "Optional notes from player" }
+      },
+      "required": ["player_id", "coach_id", "date", "time_slot", "status"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Player review of a coach.",
+      "type": "object",
+      "properties": {
+        "booking_id": { "type": "string", "description": "Reference to Booking ID" },
+        "player_id": { "type": "string", "description": "User ID of the reviewer" },
+        "coach_id": { "type": "string", "description": "User ID of the coach being reviewed" },
+        "rating": { "type": "number", "description": "Star rating (1-5)" },
+        "comment": { "type": "string", "description": "Review text" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Timestamp of review" }
+      },
+      "required": ["booking_id", "player_id", "coach_id", "rating"]
+    },
+    "Favorite": {
+      "title": "Favorite",
+      "description": "User's favorite coach record.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string", "description": "User ID of the player" },
+        "coach_id": { "type": "string", "description": "ID of the coach" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Timestamp when added" }
+      },
+      "required": ["user_id", "coach_id"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "A chat conversation between a player and a coach.",
+      "type": "object",
+      "properties": {
+        "coach_id": { "type": "string", "description": "User ID of the coach" },
+        "player_id": { "type": "string", "description": "User ID of the player" },
+        "participants": { "type": "array", "items": { "type": "string" }, "description": "Array of user IDs in the conversation" },
+        "last_message": { "type": "string", "description": "The content of the last message sent" },
+        "last_message_at": { "type": "string", "format": "date-time", "description": "Timestamp of the last message" },
+        "unread_count_player": { "type": "number", "description": "Number of unread messages for the player" },
+        "unread_count_coach": { "type": "number", "description": "Number of unread messages for the coach" },
+        "coach_name": { "type": "string", "description": "Name of the coach (denormalized)" },
+        "player_name": { "type": "string", "description": "Name of the player (denormalized)" }
+      },
+      "required": ["coach_id", "player_id", "participants"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A single message within a conversation.",
+      "type": "object",
+      "properties": {
+        "sender_id": { "type": "string", "description": "User ID of the sender" },
+        "text": { "type": "string", "description": "Content of the message" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Timestamp of the message" },
+        "read": { "type": "boolean", "description": "Whether the message has been read" }
+      },
+      "required": ["sender_id", "text", "created_at"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/coach_profiles/{coachId}": { "schema": "Coach", "description": "Coach profiles" },
+    "/players/{playerId}": { "schema": "Player", "description": "Player profiles" },
+    "/bookings/{bookingId}": { "schema": "Booking", "description": "Session bookings" },
+    "/reviews/{reviewId}": { "schema": "Review", "description": "Coach reviews" },
+    "/favorites/{favoriteId}": { "schema": "Favorite", "description": "User favorite coaches" },
+    "/conversations/{conversationId}": { "schema": "Conversation", "description": "Chat conversations" },
+    "/conversations/{conversationId}/messages/{messageId}": { "schema": "Message", "description": "Messages within a conversation" }
+  }
+}

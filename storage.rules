@@ -1,0 +1,29 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Coach profile photos — public read, owner write (max 5MB, images only)
+    match /coach_photos/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Coach intro videos — public read, owner write (max 500MB, video only)
+    match /coach_videos/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 500 * 1024 * 1024
+                   && (request.resource.contentType.matches('video/.*')
+                       || request.resource.contentType.matches('application/octet-stream'));
+    }
+
+    // Deny everything else
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

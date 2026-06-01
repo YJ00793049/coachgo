@@ -1,0 +1,7 @@
+{
+  "name": "CoachGo",
+  "description": "A premium baseball coaching marketplace connecting young athletes with specialized elite coaches.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

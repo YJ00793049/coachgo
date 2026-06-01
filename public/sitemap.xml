@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://coachgonline.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://coachgonline.com/coaches</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://coachgonline.com/coaches/1</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://coachgonline.com/coaches/2</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://coachgonline.com/coaches/3</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://coachgonline.com/coaches/4</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://coachgonline.com/coaches/5</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://coachgonline.com/coaches/6</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://coachgonline.com/coaches/8</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://coachgonline.com/coaches/9</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://coachgonline.com/about</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://coachgonline.com/contact</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://coachgonline.com/privacy</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://coachgonline.com/terms</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+</urlset>

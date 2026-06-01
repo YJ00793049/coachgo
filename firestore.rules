@@ -1,0 +1,244 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (
+          (request.auth.token.email == "yuvrajjindal2020@gmail.com" && request.auth.token.get('email_verified', false) == true) ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin')
+        );
+    }
+
+    function isCoach() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'coach';
+    }
+
+    function isPlayer() {
+      return isAuthenticated() &&
+        (!exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'player');
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Users
+    // ===============================================================
+    match /users/{userId} {
+      // Anyone authenticated can read user profiles (needed for booking emails, name lookups)
+      allow read: if isAuthenticated();
+
+      // Only the user themselves can create their own doc
+      allow create: if isOwner(userId) &&
+        request.resource.data.keys().hasAll(['name', 'email', 'role']) &&
+        request.resource.data.name is string &&
+        request.resource.data.role in ['player', 'coach', 'admin'];
+
+      // User can update their own doc, admin can update anyone
+      // Only enforce role validity — name can be empty (Google sign-in) and partial
+      // updates like updateDoc({role:'coach'}) must not be blocked by name constraints
+      allow update: if (isOwner(userId) || isAdmin()) &&
+        request.resource.data.role in ['player', 'coach', 'admin'];
+
+      // Only admin can delete users
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // Coach Profiles
+    // ===============================================================
+    match /coach_profiles/{coachId} {
+      // Public read — anyone can browse coaches
+      allow read: if true;
+
+      // Only the coach themselves (uid matches coachId) or admin can create
+      allow create: if isAuthenticated() &&
+        (request.auth.uid == coachId || isAdmin()) &&
+        request.resource.data.user_id == request.auth.uid &&
+        request.resource.data.keys().hasAll(['user_id', 'specialty', 'price_per_session']) &&
+        request.resource.data.specialty in ['hitting', 'pitching', 'fielding', 'strength'] &&
+        request.resource.data.price_per_session is number &&
+        request.resource.data.price_per_session >= 0;
+
+      // Only the coach who owns this profile or admin can update it
+      // Players CANNOT update coach profiles
+      // Partial updates (e.g. {rating, reviews} from submitReview) must not be blocked by field checks
+      allow update: if isAuthenticated() &&
+        (request.auth.uid == coachId || isAdmin()) &&
+        (!('specialty' in request.resource.data) || request.resource.data.specialty in ['hitting', 'pitching', 'fielding', 'strength']) &&
+        (!('price_per_session' in request.resource.data) || (request.resource.data.price_per_session is number && request.resource.data.price_per_session >= 0));
+
+      // Only admin can delete coach profiles
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // Bookings
+    // ===============================================================
+    match /bookings/{bookingId} {
+      // Only the player or coach involved can read a booking
+      allow read: if isAuthenticated() &&
+        (request.auth.uid == resource.data.player_id ||
+         request.auth.uid == resource.data.coach_id ||
+         isAdmin());
+
+      // Only authenticated players can create bookings for themselves
+      allow create: if isAuthenticated() &&
+        request.resource.data.player_id == request.auth.uid &&
+        request.resource.data.keys().hasAll(['player_id', 'coach_id', 'session_type', 'date', 'time_slot', 'status', 'total_price']) &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.total_price is number &&
+        request.resource.data.total_price > 0;
+
+      // Player can cancel/reschedule their own bookings
+      // Coach can accept/decline/complete/handle reschedules
+      // Admin can do anything
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        // Coach updating status of their own booking
+        (request.auth.uid == resource.data.coach_id &&
+         request.resource.data.player_id == resource.data.player_id &&
+         request.resource.data.coach_id == resource.data.coach_id &&
+         request.resource.data.status in ['confirmed', 'declined', 'completed']) ||
+        // Coach accepting a reschedule request (status: reschedule_requested → confirmed + updated date/time)
+        (request.auth.uid == resource.data.coach_id &&
+         resource.data.status == 'reschedule_requested' &&
+         request.resource.data.status == 'confirmed') ||
+        // Player cancelling their own pending booking
+        (request.auth.uid == resource.data.player_id &&
+         resource.data.status == 'pending' &&
+         request.resource.data.status == 'cancelled') ||
+        // Player cancelling their own confirmed booking
+        (request.auth.uid == resource.data.player_id &&
+         resource.data.status == 'confirmed' &&
+         request.resource.data.status == 'cancelled') ||
+        // Player requesting a reschedule on a confirmed booking
+        (request.auth.uid == resource.data.player_id &&
+         resource.data.status == 'confirmed' &&
+         request.resource.data.status == 'reschedule_requested') ||
+        // Player or coach setting the 24h reminder flag without changing status
+        (request.auth.uid in [resource.data.player_id, resource.data.coach_id] &&
+         request.resource.data.status == resource.data.status &&
+         request.resource.data.get('reminder_sent_24h', false) == true)
+      );
+
+      // Only admin can hard delete bookings
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // Conversations
+    // ===============================================================
+    match /conversations/{conversationId} {
+      // Users can only read conversations they are part of
+      allow read: if isAuthenticated() && (
+        resource.data.player_id == request.auth.uid || 
+        resource.data.coach_id == request.auth.uid ||
+        request.auth.uid in resource.data.participants
+      );
+      
+      // Users can create a conversation if they are a participant
+      allow create: if isAuthenticated() && (
+        request.resource.data.player_id == request.auth.uid ||
+        request.resource.data.coach_id == request.auth.uid ||
+        request.auth.uid in request.resource.data.participants
+      );
+      
+      // Participants can update metadata (last message, unread counts)
+      allow update: if isAuthenticated() && (
+        resource.data.player_id == request.auth.uid || 
+        resource.data.coach_id == request.auth.uid ||
+        request.auth.uid in resource.data.participants
+      );
+
+      match /messages/{messageId} {
+        // Only participants of the parent conversation can read/write messages
+        allow read: if isAuthenticated() && 
+          get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants.hasAny([request.auth.uid]);
+        
+        allow create: if isAuthenticated() && 
+          get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants.hasAny([request.auth.uid]) &&
+          request.resource.data.sender_id == request.auth.uid;
+      }
+    }
+
+    // ===============================================================
+    // Reviews
+    // ===============================================================
+    match /reviews/{reviewId} {
+      // Anyone can read reviews (shown publicly on coach profiles)
+      allow read: if true;
+
+      // Only authenticated players can create reviews for themselves
+      // Must include required fields, rating must be 1-5
+      allow create: if isAuthenticated() &&
+        request.resource.data.player_id == request.auth.uid &&
+        request.resource.data.keys().hasAll(['booking_id', 'coach_id', 'player_id', 'rating', 'comment', 'created_at']) &&
+        request.resource.data.rating is number &&
+        request.resource.data.rating >= 1 &&
+        request.resource.data.rating <= 5 &&
+        request.resource.data.comment is string &&
+        request.resource.data.comment.size() > 0 &&
+        request.resource.data.comment.size() <= 500;
+
+      // Players can update their own reviews
+      allow update: if isAuthenticated() &&
+        resource.data.player_id == request.auth.uid &&
+        request.resource.data.rating >= 1 &&
+        request.resource.data.rating <= 5 &&
+        request.resource.data.comment.size() > 0 &&
+        request.resource.data.comment.size() <= 500;
+
+      // Only admin can delete reviews
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // Favorites
+    // ===============================================================
+    match /favorites/{favoriteId} {
+      // Players can only read their own favorites
+      allow read: if isAuthenticated() &&
+        (resource.data.user_id == request.auth.uid || isAdmin());
+
+      // Players can only create favorites for themselves
+      allow create: if isAuthenticated() &&
+        request.resource.data.user_id == request.auth.uid &&
+        request.resource.data.keys().hasAll(['user_id', 'coach_id', 'created_at']);
+
+      // Players can only delete their own favorites
+      allow delete: if isAuthenticated() &&
+        (resource.data.user_id == request.auth.uid || isAdmin());
+
+      // No updates on favorites — delete and recreate
+      allow update: if false;
+    }
+
+    // ===============================================================
+    // Players (profile data)
+    // ===============================================================
+    match /players/{playerId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(playerId) || isAdmin();
+      allow update: if isOwner(playerId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}
