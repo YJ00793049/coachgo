@@ -13,14 +13,14 @@ function FAQItem({ question, answer }: FAQItemProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }} className="last:border-0 overflow-hidden">
+    <div style={{ borderBottom: '1px solid rgba(27,24,19,0.08)' }} className="last:border-0 overflow-hidden">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full py-6 flex justify-between items-center text-left transition-colors"
-        style={{ color: 'white' }}
+        style={{ color: 'var(--ink)' }}
       >
-        <span className="text-lg font-medium" style={{ color: 'white' }}>{question}</span>
-        <span className="shrink-0 ml-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
+        <span className="text-lg font-display text-2xl" style={{ color: 'var(--ink)' }}>{question}</span>
+        <span className="shrink-0 ml-4" style={{ color: 'rgba(27,24,19,0.4)' }}>
           {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </span>
       </button>
@@ -32,7 +32,7 @@ function FAQItem({ question, answer }: FAQItemProps) {
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <p className="pb-6 leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>
+            <p className="pb-6 leading-relaxed" style={{ color: 'rgba(27,24,19,0.7)' }}>
               {answer}
             </p>
           </motion.div>
@@ -124,11 +124,11 @@ export default function HelpCenterPage() {
     <PageTransition>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
         <div className="text-center mb-16">
-          <h1 className="text-5xl font-bold tracking-tight mb-6" style={{ color: 'white' }}>Help Center</h1>
-          <p className="text-lg mb-8" style={{ color: 'rgba(255,255,255,0.55)' }}>Find answers to common questions about CoachGo.</p>
+          <h1 className="display-lg mb-6">Help Center</h1>
+          <p className="text-lg mb-8" style={{ color: 'rgba(27,24,19,0.55)' }}>Find answers to common questions about CoachGo.</p>
 
           <div className="relative max-w-xl mx-auto">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2" size={20} style={{ color: 'rgba(255,255,255,0.4)' }} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2" size={20} style={{ color: 'rgba(27,24,19,0.4)' }} />
             <input
               type="text"
               placeholder="Search for questions..."
@@ -136,9 +136,9 @@ export default function HelpCenterPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-2xl py-4 pl-12 pr-4 focus:outline-none transition-colors"
               style={{
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                color: 'white',
+                background: '#FFFFFF',
+                border: '1px solid rgba(27,24,19,0.16)',
+                color: 'var(--ink)',
               }}
             />
           </div>
@@ -148,8 +148,8 @@ export default function HelpCenterPage() {
           {filteredFaqs.length > 0 ? (
             filteredFaqs.map((section) => (
               <section key={section.category}>
-                <h2 className="text-2xl font-bold mb-6" style={{ color: 'rgba(255,255,255,0.9)' }}>{section.category}</h2>
-                <div className="rounded-3xl px-8" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <h2 className="text-2xl font-bold mb-6" style={{ color: 'rgba(27,24,19,0.9)' }}>{section.category}</h2>
+                <div className="rounded-3xl px-8" style={{ background: 'rgba(27,24,19,0.03)', border: '1px solid rgba(27,24,19,0.08)' }}>
                   {section.items.map((item, idx) => (
                     <FAQItem key={idx} question={item.question} answer={item.answer} />
                   ))}
@@ -158,7 +158,7 @@ export default function HelpCenterPage() {
             ))
           ) : (
             <div className="text-center py-12">
-              <p style={{ color: 'rgba(255,255,255,0.5)' }}>No results found for "{searchQuery}"</p>
+              <p style={{ color: 'rgba(27,24,19,0.5)' }}>No results found for "{searchQuery}"</p>
             </div>
           )}
         </div>

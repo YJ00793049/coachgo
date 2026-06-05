@@ -99,13 +99,22 @@ service cloud.firestore {
          request.auth.uid == resource.data.coach_id ||
          isAdmin());
 
-      // Only authenticated players can create bookings for themselves
+      // Only authenticated players can create bookings for themselves.
+      // Status must be 'pending' (request-to-book) OR 'confirmed' when the coach
+      // has instant-book enabled on their profile.
       allow create: if isAuthenticated() &&
         request.resource.data.player_id == request.auth.uid &&
         request.resource.data.keys().hasAll(['player_id', 'coach_id', 'session_type', 'date', 'time_slot', 'status', 'total_price']) &&
-        request.resource.data.status == 'pending' &&
         request.resource.data.total_price is number &&
-        request.resource.data.total_price > 0;
+        request.resource.data.total_price > 0 &&
+        (
+          request.resource.data.status == 'pending' ||
+          (
+            request.resource.data.status == 'confirmed' &&
+            exists(/databases/$(database)/documents/coach_profiles/$(request.resource.data.coach_id)) &&
+            get(/databases/$(database)/documents/coach_profiles/$(request.resource.data.coach_id)).data.get('instant_book', false) == true
+          )
+        );
 
       // Player can cancel/reschedule their own bookings
       // Coach can accept/decline/complete/handle reschedules
@@ -229,6 +238,48 @@ service cloud.firestore {
 
       // No updates on favorites — delete and recreate
       allow update: if false;
+    }
+
+    // ===============================================================
+    // Waitlists (join when a slot is full / fully booked)
+    // ===============================================================
+    match /waitlists/{waitlistId} {
+      // The player who joined or the coach can read; admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.player_id == request.auth.uid ||
+        resource.data.coach_id == request.auth.uid ||
+        isAdmin());
+
+      // A player can add themselves to a waitlist
+      allow create: if isAuthenticated() &&
+        request.resource.data.player_id == request.auth.uid &&
+        request.resource.data.keys().hasAll(['coach_id', 'player_id', 'date', 'time_slot', 'session_type', 'created_at']);
+
+      // The coach can mark an entry as notified (no player/coach id change)
+      allow update: if isAuthenticated() &&
+        (request.auth.uid == resource.data.coach_id || isAdmin()) &&
+        request.resource.data.player_id == resource.data.player_id &&
+        request.resource.data.coach_id == resource.data.coach_id;
+
+      // Player can leave; coach/admin can clear
+      allow delete: if isAuthenticated() && (
+        resource.data.player_id == request.auth.uid ||
+        resource.data.coach_id == request.auth.uid ||
+        isAdmin());
+    }
+
+    // ===============================================================
+    // Coach profile views (analytics — append-only)
+    // ===============================================================
+    match /coach_views/{viewId} {
+      // Anyone (incl. logged-out visitors) can log a view; must be well-formed
+      allow create: if request.resource.data.keys().hasAll(['coach_id', 'created_at']) &&
+        request.resource.data.coach_id is string;
+      // Only the coach being viewed (or admin) can read their view events
+      allow read: if isAuthenticated() &&
+        (resource.data.coach_id == request.auth.uid || isAdmin());
+      // Immutable
+      allow update, delete: if isAdmin();
     }
 
     // ===============================================================

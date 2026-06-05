@@ -1,16 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Calendar, CreditCard, CheckCircle2, ArrowLeft, Loader2, ExternalLink, DollarSign, Clock, Package, Users } from 'lucide-react';
+import { Calendar, CreditCard, CheckCircle2, ArrowLeft, Loader2, ExternalLink, DollarSign, Clock, Package, Users, RefreshCw, Download } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import PageTransition from '../components/PageTransition';
 import Confetti from '../components/Confetti';
 import { SPRING, SPRING_BOUNCY } from '../tokens';
-import { GlowingEffect } from '@/components/ui/glowing-effect-card';
-import { ShimmerButton } from '@/components/ui/shimmer-button';
 import { db, auth } from '../firebase';
 import { collection, addDoc, serverTimestamp, getDoc, doc, getDocs, query, where } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 import { MOCK_COACHES } from './CoachesPage';
+import type { LocationMode, LocationModes, PromoCode } from '../types';
+import {
+  addDaysISO, blockedSlots, buildICS, downloadICS,
+  enabledLocationModes, LOCATION_MODE_META, getBrowserTimezone, tzAbbrev,
+} from '../utils/scheduling';
 
 function buildVenmoUrl(handle: string, amount: number): string {
   const note = encodeURIComponent('CoachGo Session');
@@ -52,6 +55,18 @@ export default function BookingPage() {
   const [priceError, setPriceError] = useState('');
   const [nameError, setNameError] = useState('');
   const GROUP_CAPACITY = 6;
+  // ── Scheduling settings (from coach_profiles) ──
+  const [instantBook, setInstantBook] = useState(false);
+  const [coachLocationModes, setCoachLocationModes] = useState<LocationModes | undefined>(undefined);
+  const [coachBuffer, setCoachBuffer] = useState(0);
+  const [coachTimezone, setCoachTimezone] = useState<string | undefined>(undefined);
+  const [dayBookedSlots, setDayBookedSlots] = useState<string[]>([]); // taken 1-on-1 slots for buffer blocking
+  const [recurringWeeks, setRecurringWeeks] = useState(1);
+  const [waitlistJoined, setWaitlistJoined] = useState(false);
+  const [coachPromoCodes, setCoachPromoCodes] = useState<PromoCode[]>([]);
+  const [promoInput, setPromoInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null);
+  const [promoError, setPromoError] = useState('');
   const [bookingData, setBookingData] = useState({
     sessionType: '',
     date: '',
@@ -60,7 +75,10 @@ export default function BookingPage() {
     playerAge: '',
     skillLevel: 'Developing',
     notes: '',
+    locationMode: '' as LocationMode | '',
   });
+
+  const locationOptions = enabledLocationModes(coachLocationModes);
 
   const mockCoach = MOCK_COACHES.find(c => c.id === coachId);
   const coach = mockCoach || firestoreCoach;
@@ -77,9 +95,23 @@ export default function BookingPage() {
 
   const selectedSession = sessionOptions.find(s => s.label === bookingData.sessionType);
   const basePrice = selectedSession?.price ?? privatePrice;
-  const totalPrice = selectedPackage
+  const subtotal = selectedPackage
     ? Math.round(basePrice * selectedPackage.sessions * (1 - selectedPackage.discount_pct / 100))
     : basePrice;
+  const discountAmount = appliedPromo
+    ? (appliedPromo.type === 'percent'
+        ? Math.round(subtotal * appliedPromo.value / 100)
+        : Math.min(subtotal, appliedPromo.value))
+    : 0;
+  const totalPrice = Math.max(0, subtotal - discountAmount);
+
+  const applyPromo = () => {
+    const code = promoInput.trim().toUpperCase();
+    if (!code) return;
+    const match = coachPromoCodes.find(p => p.active && p.code.toUpperCase() === code);
+    if (!match) { setPromoError("That code isn't valid for this coach."); setAppliedPromo(null); return; }
+    setPromoError(''); setAppliedPromo(match);
+  };
 
   useEffect(() => {
     if (!coachId) return;
@@ -95,6 +127,11 @@ export default function BookingPage() {
           if (d.availability) setAvailability(d.availability);
           if (d.venmo_handle) setCoachVenmoHandle(d.venmo_handle);
           if (d.packages) setCoachPackages(d.packages);
+          setInstantBook(d.instant_book === true);
+          if (d.location_modes) setCoachLocationModes(d.location_modes);
+          setCoachBuffer(Number(d.buffer_minutes) || 0);
+          setCoachTimezone(d.timezone || undefined);
+          if (Array.isArray(d.promo_codes)) setCoachPromoCodes(d.promo_codes);
           // Build fallback coach for real coaches not in MOCK_COACHES
           if (!mockCoach) {
             setFirestoreCoach({
@@ -147,6 +184,13 @@ export default function BookingPage() {
 
   const availableSlots = getSlotsForDate(bookingData.date);
 
+  const isGroupSel = bookingData.sessionType.toLowerCase().includes('group');
+  const selectedSlotFull = !!bookingData.time && (
+    isGroupSel
+      ? groupSpotsLeft === 0
+      : blockedSlots(dayBookedSlots, coachBuffer, [bookingData.time]).has(bookingData.time)
+  );
+
   const handleDateChange = (dateStr: string) => {
     setBookingData(prev => ({ ...prev, date: dateStr, time: '' }));
   };
@@ -172,6 +216,60 @@ export default function BookingPage() {
     checkGroupCapacity();
   }, [bookingData.sessionType, bookingData.date, bookingData.time, coachUid]);
 
+  // Default the location mode once we know what the coach offers
+  useEffect(() => {
+    const opts = enabledLocationModes(coachLocationModes);
+    setBookingData(prev => prev.locationMode ? prev : { ...prev, locationMode: opts[0] });
+  }, [coachLocationModes]);
+
+  // Fetch the day's booked 1-on-1 slots (double-book + buffer prevention)
+  useEffect(() => {
+    if (!bookingData.date || bookingData.sessionType.toLowerCase().includes('group')) {
+      setDayBookedSlots([]);
+      return;
+    }
+    const fetchDay = async () => {
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'bookings'),
+          where('coach_id', '==', coachUid),
+          where('date', '==', bookingData.date),
+        ));
+        setDayBookedSlots(
+          snap.docs
+            .filter(d => ['pending', 'confirmed'].includes(d.data().status))
+            .map(d => d.data().time_slot as string)
+            .filter(Boolean)
+        );
+      } catch { setDayBookedSlots([]); }
+    };
+    fetchDay();
+  }, [bookingData.date, bookingData.sessionType, coachUid]);
+
+  const joinWaitlist = async () => {
+    if (!auth.currentUser || !bookingData.date || !bookingData.time) return;
+    try {
+      const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+      const playerName = bookingData.playerName.trim()
+        || (userDoc.exists() ? userDoc.data().name : '')
+        || auth.currentUser.displayName || 'Player';
+      await addDoc(collection(db, 'waitlists'), {
+        coach_id: coach?.user_id ?? coachId,
+        player_id: auth.currentUser.uid,
+        player_name: playerName,
+        coach_name: coach?.name ?? '',
+        date: bookingData.date,
+        time_slot: bookingData.time,
+        session_type: bookingData.sessionType || '1-on-1 Private',
+        created_at: serverTimestamp(),
+        notified: false,
+      });
+      setWaitlistJoined(true);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, 'waitlists');
+    }
+  };
+
   const nextStep = () => setStep(s => s + 1);
   const prevStep = () => setStep(s => s - 1);
 
@@ -193,18 +291,16 @@ export default function BookingPage() {
 
   return (
     <PageTransition>
-      <div className="max-w-3xl mx-auto px-4 py-16 pt-28" style={{ minHeight: '100vh', background: '#080B14' }}>
+      <div className="max-w-3xl mx-auto px-4 py-16 pt-28" style={{ minHeight: '100vh', background: 'var(--paper)' }}>
 
         <Confetti active={step === 5} />
 
         {/* Progress Bar */}
         <div className="flex justify-between mb-12 relative">
-          {/* Track line */}
-          <div className="absolute top-5 left-0 w-full h-px z-0" style={{ background: 'rgba(255,255,255,0.07)' }} />
-          {/* Filled progress line */}
+          <div className="absolute top-5 left-0 w-full h-px z-0" style={{ background: 'var(--line-strong)' }} />
           <motion.div
             className="absolute top-5 left-0 h-px z-0 origin-left"
-            style={{ background: 'linear-gradient(90deg, #4F8EF7, #7C3AED)' }}
+            style={{ background: 'var(--ink)' }}
             animate={{ width: `${((Math.min(step, steps.length) - 1) / (steps.length - 1)) * 100}%` }}
             transition={{ ...SPRING }}
           />
@@ -212,14 +308,12 @@ export default function BookingPage() {
             <div key={s.id} className="relative z-10 flex flex-col items-center">
               <motion.div
                 animate={{
-                  background: step >= s.id ? '#4F8EF7' : 'rgba(255,255,255,0.05)',
-                  borderColor: step >= s.id ? '#4F8EF7' : 'rgba(255,255,255,0.1)',
-                  scale: step === s.id ? [1, 1.18, 1] : 1,
-                  boxShadow: step === s.id ? '0 0 16px rgba(79,142,247,0.7)' : '0 0 0px rgba(79,142,247,0)',
+                  background: step >= s.id ? 'var(--black)' : 'var(--card-cream)',
+                  borderColor: step >= s.id ? 'var(--black)' : 'var(--line-strong)',
                 }}
-                transition={step === s.id ? { scale: { duration: 1.6, repeat: Infinity, ease: 'easeInOut' }, ...SPRING } : { ...SPRING }}
-                className="w-10 h-10 rounded-full flex items-center justify-center border-2 font-bold text-sm"
-                style={{ color: step >= s.id ? 'white' : 'rgba(255,255,255,0.3)', willChange: 'transform' }}
+                transition={{ ...SPRING }}
+                className="w-10 h-10 rounded-full flex items-center justify-center border font-display text-base"
+                style={{ color: step >= s.id ? 'var(--paper)' : 'var(--ink-faint)', willChange: 'transform' }}
               >
                 {step > s.id ? (
                   <motion.svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
@@ -230,120 +324,55 @@ export default function BookingPage() {
                   </motion.svg>
                 ) : s.id}
               </motion.div>
-              <span className="text-[10px] uppercase tracking-widest mt-2 font-bold hidden sm:block"
-                style={{ color: step >= s.id ? '#4F8EF7' : 'rgba(255,255,255,0.3)' }}>
+              <span className="text-[11px] tracking-wide mt-2 hidden sm:block"
+                style={{ color: step >= s.id ? 'var(--ink)' : 'var(--ink-faint)' }}>
                 {s.title}
               </span>
             </div>
           ))}
         </div>
 
-        <div className="relative rounded-3xl">
-          <GlowingEffect disabled={false} spread={60} borderWidth={2} proximity={100} />
-          <div className="rounded-3xl p-8 md:p-12" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="cg-card p-7 md:p-10">
           <AnimatePresence mode="wait">
 
             {/* STEP 1 — Session Type */}
             {step === 1 && (
-              <motion.div key="step1" initial={{ opacity: 0, x: prefersReduced ? 0 : 60 }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -60, transition: { duration: 0.18 } }}>
-                <h2 className="text-2xl font-bold mb-2 text-white">Select Session Type</h2>
-                {coach && <p className="text-sm mb-8" style={{ color: 'rgba(255,255,255,0.4)' }}>with {coach.name}</p>}
-                <div className="space-y-4 mb-8">
+              <motion.div key="step1" initial={{ opacity: 0, x: prefersReduced ? 0 : 40 }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -40, transition: { duration: 0.18 } }}>
+                <h2 className="display-md mb-1">Select session type</h2>
+                {coach && <p className="text-sm mb-8" style={{ color: 'var(--ink-soft)' }}>with {coach.name}</p>}
+                <div className="space-y-3 mb-8">
                   {sessionOptions.map(option => {
                     const isSelected = bookingData.sessionType === option.label;
                     return (
-                      <motion.button
+                      <button
                         key={option.label}
                         onClick={() => { setBookingData({ ...bookingData, sessionType: option.label }); setSelectedPackage(null); nextStep(); }}
-                        whileHover={{ scale: 1.01 }}
-                        whileTap={{ scale: 0.99 }}
-                        animate={{
-                          background: isSelected ? 'rgba(79,142,247,0.1)' : 'rgba(255,255,255,0.02)',
-                        }}
-                        transition={SPRING}
-                        className="relative w-full text-left p-6 rounded-2xl overflow-hidden"
+                        className="relative w-full text-left p-5 rounded-2xl transition-colors"
                         style={{
-                          border: '2px solid',
-                          borderColor: isSelected ? 'transparent' : 'rgba(255,255,255,0.08)',
+                          border: `1px solid ${isSelected ? 'var(--ink)' : 'var(--line)'}`,
+                          background: isSelected ? 'var(--paper-warm)' : 'var(--card-cream)',
                         }}
                       >
-                        {/* Animated gradient border on select */}
-                        {isSelected && (
-                          <svg
-                            aria-hidden
-                            className="absolute inset-0 w-full h-full pointer-events-none"
-                            preserveAspectRatio="none"
-                            style={{ borderRadius: '1rem' }}
-                          >
-                            <defs>
-                              <linearGradient id={`bdr-${option.label.replace(/\s/g, '')}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%"  stopColor="#4F8EF7" />
-                                <stop offset="50%" stopColor="#7C3AED" />
-                                <stop offset="100%" stopColor="#06B6D4" />
-                              </linearGradient>
-                            </defs>
-                            <motion.rect
-                              x="1" y="1"
-                              width="calc(100% - 2px)"
-                              height="calc(100% - 2px)"
-                              rx="14"
-                              fill="none"
-                              stroke={`url(#bdr-${option.label.replace(/\s/g, '')})`}
-                              strokeWidth="2"
-                              pathLength={1}
-                              strokeDasharray={1}
-                              initial={{ strokeDashoffset: 1 }}
-                              animate={{ strokeDashoffset: 0 }}
-                              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                            />
-                          </svg>
-                        )}
-                        <div className="relative flex justify-between items-center">
+                        <div className="relative flex justify-between items-center gap-4">
                           <div>
-                            <span className="font-bold text-white text-lg">{option.label}</span>
-                            <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                            <span className="font-display text-2xl" style={{ color: 'var(--ink)' }}>{option.label}</span>
+                            <p className="text-xs mt-1" style={{ color: 'var(--ink-soft)' }}>
                               {option.label === '1-on-1 Private'
                                 ? 'Dedicated 1-hour session focused entirely on your development'
                                 : 'Small group setting, great for teams and practice partners'}
                             </p>
                           </div>
-                          <div className="flex items-center gap-1 font-bold text-xl shrink-0 ml-4" style={{ color: '#4F8EF7' }}>
-                            <DollarSign size={16} />
-                            <span>{option.price}</span>
-                          </div>
+                          <span className="font-display text-2xl shrink-0" style={{ color: 'var(--ink)' }}>${option.price}</span>
                         </div>
-
-                        {/* SVG checkmark — drawn on select, top-right corner */}
-                        {isSelected && (
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.5 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={SPRING_BOUNCY}
-                            className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center"
-                            style={{
-                              background: 'linear-gradient(135deg, #4F8EF7, #2563EB)',
-                              boxShadow: '0 4px 16px rgba(79,142,247,0.45)',
-                            }}
-                          >
-                            <motion.svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
-                              <motion.path
-                                d="M5 13l4 4L19 7"
-                                initial={{ pathLength: 0 }}
-                                animate={{ pathLength: 1 }}
-                                transition={{ duration: 0.4, delay: 0.1, ease: 'easeOut' }}
-                              />
-                            </motion.svg>
-                          </motion.div>
-                        )}
-                      </motion.button>
+                      </button>
                     );
                   })}
                 </div>
 
                 {coachPackages.length > 0 && (
-                  <div className="mb-12">
-                    <p className="text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                      <Package size={14} /> Package Deals
+                  <div className="mb-10">
+                    <p className="text-xs uppercase tracking-[0.14em] mb-4 flex items-center gap-2" style={{ color: 'var(--ink-faint)' }}>
+                      <Package size={14} /> Package deals
                     </p>
                     <div className="space-y-3">
                       {coachPackages.map((pkg, i) => {
@@ -356,26 +385,26 @@ export default function BookingPage() {
                               setBookingData({ ...bookingData, sessionType: '1-on-1 Private' });
                               nextStep();
                             }}
-                            className="w-full text-left p-5 rounded-2xl border-2 transition-all hover:scale-[1.01]"
+                            className="w-full text-left p-5 rounded-2xl transition-colors"
                             style={{
-                              borderColor: isSelected ? '#F59E0B' : 'rgba(245,158,11,0.2)',
-                              background: isSelected ? 'rgba(245,158,11,0.1)' : 'rgba(245,158,11,0.04)',
+                              border: `1px solid ${isSelected ? 'var(--clay)' : 'var(--line)'}`,
+                              background: isSelected ? 'rgba(219,167,132,0.12)' : 'var(--card-cream)',
                             }}>
-                            <div className="flex justify-between items-center">
+                            <div className="flex justify-between items-center gap-4">
                               <div>
                                 <div className="flex items-center gap-2 mb-1">
-                                  <span className="font-bold text-white">{pkg.label || `${pkg.sessions}-Session Pack`}</span>
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase" style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>
+                                  <span className="font-display text-xl" style={{ color: 'var(--ink)' }}>{pkg.label || `${pkg.sessions}-Session Pack`}</span>
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide" style={{ background: 'rgba(94,140,90,0.15)', color: 'var(--c-confirmed)' }}>
                                     Save {pkg.discount_pct}%
                                   </span>
                                 </div>
-                                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                                <p className="text-xs" style={{ color: 'var(--ink-soft)' }}>
                                   {pkg.sessions} private sessions · ${Math.round(pkgPrice / pkg.sessions)}/session
                                 </p>
                               </div>
-                              <div className="text-right shrink-0 ml-4">
-                                <p className="font-bold text-lg" style={{ color: '#F59E0B' }}>${pkgPrice}</p>
-                                <p className="text-xs line-through" style={{ color: 'rgba(255,255,255,0.25)' }}>${privatePrice * pkg.sessions}</p>
+                              <div className="text-right shrink-0">
+                                <p className="font-display text-xl" style={{ color: 'var(--ink)' }}>${pkgPrice}</p>
+                                <p className="text-xs line-through" style={{ color: 'var(--ink-faint)' }}>${privatePrice * pkg.sessions}</p>
                               </div>
                             </div>
                           </button>
@@ -386,51 +415,72 @@ export default function BookingPage() {
                 )}
 
                 <button onClick={() => navigate(`/coaches/${coachId}`)}
-                  className="flex items-center gap-2 text-sm font-bold transition-colors"
-                  style={{ color: 'rgba(255,255,255,0.4)' }}>
-                  <ArrowLeft size={16} /> Back to Coach Profile
+                  className="flex items-center gap-2 text-sm transition-colors"
+                  style={{ color: 'var(--ink-soft)' }}>
+                  <ArrowLeft size={16} /> Back to coach profile
                 </button>
               </motion.div>
             )}
 
             {/* STEP 2 — Date & Time */}
             {step === 2 && (
-              <motion.div key="step2" initial={{ opacity: 0, x: prefersReduced ? 0 : 60 }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -60, transition: { duration: 0.18 } }}>
-                <h2 className="text-2xl font-bold mb-2 text-white">Select Date & Time</h2>
+              <motion.div key="step2" initial={{ opacity: 0, x: prefersReduced ? 0 : 40 }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -40, transition: { duration: 0.18 } }}>
+                <h2 className="display-md mb-2">Select date & time</h2>
+
+                {/* Location mode */}
+                {locationOptions.length > 1 && (
+                  <div className="mb-6">
+                    <p className="text-xs uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--ink-faint)' }}>Where</p>
+                    <div className="flex flex-wrap gap-2">
+                      {locationOptions.map(m => (
+                        <button key={m} type="button"
+                          onClick={() => setBookingData({ ...bookingData, locationMode: m })}
+                          className="px-4 py-2 rounded-full text-sm transition-colors"
+                          style={{
+                            background: bookingData.locationMode === m ? 'var(--black)' : 'var(--card-cream)',
+                            border: `1px solid ${bookingData.locationMode === m ? 'var(--black)' : 'var(--line-strong)'}`,
+                            color: bookingData.locationMode === m ? 'var(--paper)' : 'var(--ink)',
+                          }}>
+                          {LOCATION_MODE_META[m].label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {availableDays.length === 0 ? (
-                  <div className="mb-8 p-4 rounded-xl text-sm" style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', color: '#F59E0B' }}>
+                  <div className="mb-8 p-4 rounded-xl text-sm" style={{ background: 'rgba(199,154,87,0.10)', border: '1px solid rgba(199,154,87,0.3)', color: 'var(--c-reschedule)' }}>
                     This coach hasn't set their availability yet — they'll confirm your preferred time manually.
                   </div>
                 ) : (
-                  <p className="text-sm mb-8" style={{ color: 'rgba(255,255,255,0.4)' }}>{getDateHint()}</p>
+                  <p className="text-sm mb-8" style={{ color: 'var(--ink-soft)' }}>{getDateHint()}</p>
                 )}
 
                 {loadingAvailability ? (
                   <div className="flex items-center justify-center py-16">
-                    <Loader2 className="animate-spin" size={32} style={{ color: '#4F8EF7' }} />
+                    <Loader2 className="animate-spin" size={30} style={{ color: 'var(--ink-soft)' }} />
                   </div>
                 ) : (
                   <div className="space-y-8">
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                        Select Date
+                      <label className="block text-xs uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--ink-faint)' }}>
+                        Select date
                       </label>
                       <input
                         type="date"
                         min={today}
                         value={bookingData.date}
                         onChange={(e) => handleDateChange(e.target.value)}
-                        className="w-full rounded-xl p-4 focus:outline-none text-white"
-                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', colorScheme: 'dark' }}
+                        className="cg-input"
                       />
                       {availableDays.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-3">
                           {DAY_NAMES.map(day => (
-                            <span key={day} className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg"
+                            <span key={day} className="text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full"
                               style={{
-                                background: availableDays.includes(day) ? 'rgba(79,142,247,0.12)' : 'rgba(255,255,255,0.03)',
-                                color: availableDays.includes(day) ? '#4F8EF7' : 'rgba(255,255,255,0.15)',
-                                border: `1px solid ${availableDays.includes(day) ? 'rgba(79,142,247,0.25)' : 'rgba(255,255,255,0.05)'}`,
+                                background: availableDays.includes(day) ? 'var(--paper-warm)' : 'transparent',
+                                color: availableDays.includes(day) ? 'var(--ink)' : 'var(--ink-faint)',
+                                border: `1px solid ${availableDays.includes(day) ? 'var(--line-strong)' : 'var(--line)'}`,
                               }}>
                               {day.slice(0, 3)}
                             </span>
@@ -438,96 +488,104 @@ export default function BookingPage() {
                         </div>
                       )}
                       {bookingData.date && availableDays.length > 0 && !isDateAvailable(bookingData.date) && (
-                        <p className="text-xs mt-2 font-medium" style={{ color: '#f59e0b' }}>
-                          ⚠ Coach is not typically available on {DAY_NAMES[new Date(bookingData.date + 'T12:00:00').getDay()]}s. You can still request this date.
+                        <p className="text-xs mt-2" style={{ color: 'var(--c-reschedule)' }}>
+                          Coach is not typically available on {DAY_NAMES[new Date(bookingData.date + 'T12:00:00').getDay()]}s. You can still request this date.
                         </p>
                       )}
                     </div>
 
                     {bookingData.date && (
                       <div>
-                        <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                        <label className="block text-xs uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--ink-faint)' }}>
                           <Clock size={12} className="inline mr-1" />
-                          Available Time Slots
+                          Available time slots
                         </label>
-                        {availableSlots.length > 0 ? (
-                          <motion.div
-                            className="grid grid-cols-3 sm:grid-cols-4 gap-2"
-                            variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
-                            initial="hidden"
-                            animate="visible"
-                          >
-                            {availableSlots.map(t => (
-                              <motion.button key={t}
-                                variants={{ hidden: { opacity: 0, scale: 0.7 }, visible: { opacity: 1, scale: [0.7, 1.08, 1], transition: { ...SPRING_BOUNCY } } }}
-                                whileHover={prefersReduced ? {} : { scale: 1.1 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => setBookingData({ ...bookingData, time: t })}
-                                className="p-3 rounded-xl text-xs font-bold transition-colors"
-                                style={{
-                                  background: bookingData.time === t ? '#4F8EF7' : 'rgba(255,255,255,0.04)',
-                                  border: `1px solid ${bookingData.time === t ? '#4F8EF7' : 'rgba(255,255,255,0.08)'}`,
-                                  color: bookingData.time === t ? 'white' : 'rgba(255,255,255,0.5)',
-                                }}>
-                                {t}
-                              </motion.button>
-                            ))}
-                          </motion.div>
-                        ) : (
-                          <div>
-                            <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                              {availableDays.length > 0 ? 'No slots set for this day — select a time to request anyway:' : 'Select a preferred time:'}
-                            </p>
-                            <motion.div
-                              className="grid grid-cols-3 sm:grid-cols-4 gap-2"
-                              variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
-                              initial="hidden"
-                              animate="visible"
-                            >
-                              {['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM'].map(t => (
-                                <motion.button key={t}
-                                  variants={{ hidden: { opacity: 0, scale: 0.7 }, visible: { opacity: 1, scale: [0.7, 1.08, 1], transition: { ...SPRING_BOUNCY } } }}
-                                  whileHover={prefersReduced ? {} : { scale: 1.1 }}
-                                  whileTap={{ scale: 0.95 }}
-                                  onClick={() => setBookingData({ ...bookingData, time: t })}
-                                  className="p-3 rounded-xl text-xs font-bold transition-colors"
-                                  style={{
-                                    background: bookingData.time === t ? '#4F8EF7' : 'rgba(255,255,255,0.04)',
-                                    border: `1px solid ${bookingData.time === t ? '#4F8EF7' : 'rgba(255,255,255,0.08)'}`,
-                                    color: bookingData.time === t ? 'white' : 'rgba(255,255,255,0.5)',
-                                  }}>
-                                  {t}
-                                </motion.button>
-                              ))}
-                            </motion.div>
-                          </div>
-                        )}
+                        {(() => {
+                          const slots = availableSlots.length > 0 ? availableSlots : ['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM'];
+                          const isGroup = bookingData.sessionType.toLowerCase().includes('group');
+                          const blocked = isGroup ? new Set<string>() : blockedSlots(dayBookedSlots, coachBuffer, slots);
+                          return (
+                            <>
+                              {availableSlots.length === 0 && (
+                                <p className="text-xs mb-3" style={{ color: 'var(--ink-faint)' }}>
+                                  {availableDays.length > 0 ? 'No slots set for this day — select a time to request anyway:' : 'Select a preferred time:'}
+                                </p>
+                              )}
+                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                {slots.map(t => {
+                                  const isFull = blocked.has(t);
+                                  const selected = bookingData.time === t;
+                                  return (
+                                    <button key={t}
+                                      onClick={() => { setBookingData({ ...bookingData, time: t }); setWaitlistJoined(false); }}
+                                      className="p-3 rounded-xl text-sm transition-colors relative"
+                                      style={{
+                                        background: selected ? 'var(--black)' : 'var(--card-cream)',
+                                        border: `1px solid ${selected ? 'var(--black)' : 'var(--line-strong)'}`,
+                                        color: selected ? 'var(--paper)' : (isFull ? 'var(--ink-faint)' : 'var(--ink)'),
+                                        textDecoration: isFull && !selected ? 'line-through' : 'none',
+                                        opacity: isFull && !selected ? 0.7 : 1,
+                                      }}>
+                                      {t}
+                                      {isFull && (
+                                        <span className="block text-[8px] uppercase tracking-wide mt-0.5" style={{ color: selected ? 'var(--paper)' : 'var(--c-declined)' }}>full</span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
                 )}
 
                 {/* Group capacity indicator */}
-                {bookingData.sessionType.toLowerCase().includes('group') && bookingData.time && (
+                {isGroupSel && bookingData.time && (
                   <div className="mt-4 p-4 rounded-xl flex items-center gap-3"
                     style={{
-                      background: groupSpotsLeft === 0 ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.06)',
-                      border: `1px solid ${groupSpotsLeft === 0 ? 'rgba(239,68,68,0.2)' : 'rgba(34,197,94,0.15)'}`,
+                      background: groupSpotsLeft === 0 ? 'rgba(188,90,72,0.08)' : 'rgba(94,140,90,0.08)',
+                      border: `1px solid ${groupSpotsLeft === 0 ? 'rgba(188,90,72,0.25)' : 'rgba(94,140,90,0.2)'}`,
                     }}>
-                    <Users size={16} style={{ color: groupSpotsLeft === 0 ? '#ef4444' : '#22c55e' }} />
-                    <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                    <Users size={16} style={{ color: groupSpotsLeft === 0 ? 'var(--c-declined)' : 'var(--c-confirmed)' }} />
+                    <p className="text-sm" style={{ color: 'var(--ink)' }}>
                       {groupSpotsLeft === null ? 'Checking availability...' :
-                       groupSpotsLeft === 0 ? 'This time slot is full. Please choose another time.' :
+                       groupSpotsLeft === 0 ? 'This time slot is full — join the waitlist below.' :
                        `${groupSpotsLeft} of ${GROUP_CAPACITY} spots remaining`}
                     </p>
                   </div>
                 )}
 
-                <div className="flex justify-between mt-12">
-                  <button onClick={prevStep} className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.4)' }}>Back</button>
+                {/* Waitlist (slot full) */}
+                {selectedSlotFull && (
+                  <div className="mt-4 p-5 rounded-2xl" style={{ background: 'var(--card-cream)', border: '1px solid var(--line-strong)' }}>
+                    {waitlistJoined ? (
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 size={18} style={{ color: 'var(--c-confirmed)' }} />
+                        <p className="text-sm" style={{ color: 'var(--ink)' }}>
+                          You're on the waitlist for {bookingData.time}. We'll let you know if a spot opens.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <p className="text-sm" style={{ color: 'var(--ink-soft)' }}>
+                          This time is full. Join the waitlist and we'll notify you if it frees up.
+                        </p>
+                        <button onClick={joinWaitlist} className="btn-secondary py-2.5 px-5 text-sm shrink-0">
+                          <Users size={15} /> Join waitlist
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center mt-12">
+                  <button onClick={prevStep} className="text-sm" style={{ color: 'var(--ink-soft)' }}>Back</button>
                   <button onClick={nextStep}
-                    disabled={!bookingData.date || !bookingData.time || groupSpotsLeft === 0}
-                    className="btn-primary py-3 px-8 text-sm disabled:opacity-50">
+                    disabled={!bookingData.date || !bookingData.time || selectedSlotFull}
+                    className="btn-primary py-3 px-8 text-sm disabled:opacity-40">
                     Continue
                   </button>
                 </div>
@@ -536,15 +594,14 @@ export default function BookingPage() {
 
             {/* STEP 3 — Player Info */}
             {step === 3 && (
-              <motion.div key="step3" initial={{ opacity: 0, x: prefersReduced ? 0 : 60 }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -60, transition: { duration: 0.18 } }}>
-                <h2 className="text-2xl font-bold mb-8 text-white">Player Information</h2>
+              <motion.div key="step3" initial={{ opacity: 0, x: prefersReduced ? 0 : 40 }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -40, transition: { duration: 0.18 } }}>
+                <h2 className="display-md mb-8">Player information</h2>
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>Player Name</label>
+                    <label className="block text-xs uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--ink-faint)' }}>Player name</label>
                     <input
                       type="text"
-                      className="w-full rounded-xl p-4 focus:outline-none text-white"
-                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', colorScheme: 'dark' }}
+                      className="cg-input"
                       placeholder="Enter full name"
                       value={bookingData.playerName}
                       onChange={(e) => setBookingData({ ...bookingData, playerName: e.target.value })}
@@ -552,56 +609,52 @@ export default function BookingPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>Age</label>
+                      <label className="block text-xs uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--ink-faint)' }}>Age</label>
                       <input
                         type="number"
                         min="5" max="99"
-                        className="w-full rounded-xl p-4 focus:outline-none text-white"
-                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', colorScheme: 'dark' }}
+                        className="cg-input"
                         placeholder="Age"
                         value={bookingData.playerAge}
                         onChange={(e) => setBookingData({ ...bookingData, playerAge: e.target.value })}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>Skill Level</label>
+                      <label className="block text-xs uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--ink-faint)' }}>Skill level</label>
                       <select
-                        className="w-full rounded-xl p-4 focus:outline-none text-white"
-                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', colorScheme: 'dark' }}
+                        className="cg-input cursor-pointer"
                         value={bookingData.skillLevel}
                         onChange={(e) => setBookingData({ ...bookingData, skillLevel: e.target.value })}
                       >
-                        <option value="Beginner" className="bg-gray-900">Beginner</option>
-                        <option value="Developing" className="bg-gray-900">Developing</option>
-                        <option value="Competitive" className="bg-gray-900">Competitive</option>
+                        <option value="Beginner">Beginner</option>
+                        <option value="Developing">Developing</option>
+                        <option value="Competitive">Competitive</option>
                       </select>
                     </div>
                   </div>
 
-                  {/* Notes — now mandatory */}
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                      Tell Us About Yourself & Goals
+                    <label className="block text-xs uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--ink-faint)' }}>
+                      Tell us about yourself & goals
                     </label>
                     <textarea
                       rows={4}
                       required
-                      className="w-full rounded-xl p-4 focus:outline-none text-sm resize-none text-white"
-                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', colorScheme: 'dark' }}
+                      className="cg-input text-sm resize-none"
                       placeholder="Your position, experience level, what you want to work on, any injuries the coach should know about..."
                       value={bookingData.notes}
                       onChange={(e) => setBookingData({ ...bookingData, notes: e.target.value })}
                     />
                     {!bookingData.notes && (
-                      <p className="text-[10px] mt-1.5 font-medium" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                      <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-faint)' }}>
                         Required — helps your coach prepare for the session
                       </p>
                     )}
                   </div>
                 </div>
 
-                <div className="flex justify-between mt-12">
-                  <button onClick={prevStep} className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.4)' }}>Back</button>
+                <div className="flex justify-between items-center mt-12">
+                  <button onClick={prevStep} className="text-sm" style={{ color: 'var(--ink-soft)' }}>Back</button>
                   <button
                     onClick={() => {
                       const parts = bookingData.playerName.trim().split(/\s+/);
@@ -610,63 +663,71 @@ export default function BookingPage() {
                       nextStep();
                     }}
                     disabled={!bookingData.playerName || !bookingData.playerAge || !bookingData.notes.trim()}
-                    className="btn-primary py-3 px-8 text-sm disabled:opacity-50"
+                    className="btn-primary py-3 px-8 text-sm disabled:opacity-40"
                   >
                     Continue
                   </button>
                 </div>
-                {nameError && <p className="text-xs mt-2 text-right font-medium" style={{ color: '#f87171' }}>{nameError}</p>}
+                {nameError && <p className="text-xs mt-2 text-right" style={{ color: 'var(--c-declined)' }}>{nameError}</p>}
               </motion.div>
             )}
 
             {/* STEP 4 — Confirm */}
             {step === 4 && (
-              <motion.div key="step4" initial={{ opacity: 0, x: prefersReduced ? 0 : 60 }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -60, transition: { duration: 0.18 } }}>
-                <h2 className="text-2xl font-bold mb-8 text-white">Review & Confirm</h2>
+              <motion.div key="step4" initial={{ opacity: 0, x: prefersReduced ? 0 : 40 }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -40, transition: { duration: 0.18 } }}>
+                <h2 className="display-md mb-8">Review & confirm</h2>
 
-                <div className="rounded-2xl mb-6 overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="rounded-2xl mb-6 overflow-hidden" style={{ border: '1px solid var(--line)' }}>
                   {coach && (
-                    <div className="p-5 flex items-center gap-4" style={{ background: 'rgba(79,142,247,0.06)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                        {coach.avatar_url && <img src={coach.avatar_url} alt="" className="w-full h-full object-cover" />}
+                    <div className="p-5 flex items-center gap-4" style={{ background: 'var(--paper-warm)', borderBottom: '1px solid var(--line)' }}>
+                      <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0" style={{ background: 'var(--card-cream)' }}>
+                        {coach.avatar_url && <img src={coach.avatar_url} alt="" className="w-full h-full object-cover object-top" />}
                       </div>
                       <div>
-                        <p className="font-bold text-white">{coach.name}</p>
-                        <p className="text-xs capitalize" style={{ color: 'rgba(255,255,255,0.4)' }}>{coach.specialty} specialist</p>
+                        <p className="font-display text-xl" style={{ color: 'var(--ink)' }}>{coach.name}</p>
+                        <p className="text-xs capitalize" style={{ color: 'var(--ink-soft)' }}>{coach.specialty} specialist</p>
                       </div>
                     </div>
                   )}
-                  <div className="p-6 space-y-3">
+                  <div className="p-6 space-y-3" style={{ background: 'var(--card-cream)' }}>
                     {[
                       { label: 'Session Type', value: bookingData.sessionType },
+                      ...(bookingData.locationMode ? [{ label: 'Location', value: LOCATION_MODE_META[bookingData.locationMode].label }] : []),
                       { label: 'Date', value: new Date(bookingData.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) },
-                      { label: 'Time', value: bookingData.time },
+                      { label: 'Time', value: `${bookingData.time}${coachTimezone ? ' ' + tzAbbrev(coachTimezone) : ''}` },
+                      ...(recurringWeeks > 1 ? [{ label: 'Repeats', value: `Weekly × ${recurringWeeks}` }] : []),
                       { label: 'Player', value: `${bookingData.playerName}, Age ${bookingData.playerAge}` },
                       { label: 'Level', value: bookingData.skillLevel },
                       { label: 'Notes', value: bookingData.notes },
                     ].map(item => (
                       <div key={item.label} className="flex justify-between text-sm gap-4">
-                        <span className="shrink-0" style={{ color: 'rgba(255,255,255,0.4)' }}>{item.label}</span>
-                        <span className="font-bold text-white text-right">{item.value}</span>
+                        <span className="shrink-0" style={{ color: 'var(--ink-soft)' }}>{item.label}</span>
+                        <span className="text-right" style={{ color: 'var(--ink)' }}>{item.value}</span>
                       </div>
                     ))}
                     {selectedPackage && (
                       <div className="flex justify-between text-sm gap-4">
-                        <span className="shrink-0" style={{ color: 'rgba(255,255,255,0.4)' }}>Package</span>
-                        <span className="font-bold text-right" style={{ color: '#F59E0B' }}>
+                        <span className="shrink-0" style={{ color: 'var(--ink-soft)' }}>Package</span>
+                        <span className="text-right" style={{ color: 'var(--ink)' }}>
                           {selectedPackage.sessions} sessions · Save {selectedPackage.discount_pct}%
                         </span>
                       </div>
                     )}
-                    <div className="pt-4 flex justify-between items-center" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                      <span className="font-bold text-white text-lg">Total</span>
+                    {appliedPromo && (
+                      <div className="flex justify-between text-sm gap-4">
+                        <span className="shrink-0" style={{ color: 'var(--ink-soft)' }}>Promo · {appliedPromo.code}</span>
+                        <span className="text-right" style={{ color: 'var(--c-confirmed)' }}>
+                          −${discountAmount}{appliedPromo.type === 'percent' ? ` (${appliedPromo.value}% off)` : ''}
+                        </span>
+                      </div>
+                    )}
+                    <div className="pt-4 flex justify-between items-center" style={{ borderTop: '1px solid var(--line)' }}>
+                      <span className="font-display text-2xl" style={{ color: 'var(--ink)' }}>Total</span>
                       <div className="flex flex-col items-end">
-                        <div className="flex items-center gap-1 font-bold text-2xl" style={{ color: '#4F8EF7' }}>
-                          <DollarSign size={20} /><span>{totalPrice}</span>
-                        </div>
-                        {selectedPackage && (
-                          <p className="text-xs line-through mt-0.5" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                            ${basePrice * selectedPackage.sessions}
+                        <span className="font-display text-3xl" style={{ color: 'var(--ink)' }}>${totalPrice}</span>
+                        {(selectedPackage || appliedPromo) && (
+                          <p className="text-xs line-through mt-0.5" style={{ color: 'var(--ink-faint)' }}>
+                            ${selectedPackage ? basePrice * selectedPackage.sessions : subtotal}
                           </p>
                         )}
                       </div>
@@ -674,32 +735,88 @@ export default function BookingPage() {
                   </div>
                 </div>
 
-                <div className="p-4 rounded-xl flex items-center gap-4 mb-4" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
-                  <CreditCard size={20} style={{ color: '#F59E0B' }} />
-                  <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                    Payment is collected after the coach confirms your booking. You won't be charged until then.
+                {/* Promo code */}
+                {coachPromoCodes.some(p => p.active) && (
+                  <div className="mb-4">
+                    {appliedPromo ? (
+                      <div className="flex items-center justify-between p-4 rounded-2xl" style={{ background: 'rgba(94,140,90,0.08)', border: '1px solid rgba(94,140,90,0.25)' }}>
+                        <p className="text-sm" style={{ color: 'var(--ink)' }}>
+                          <CheckCircle2 size={15} className="inline mr-1.5 -mt-0.5" style={{ color: 'var(--c-confirmed)' }} />
+                          Code <strong>{appliedPromo.code}</strong> applied.
+                        </p>
+                        <button onClick={() => { setAppliedPromo(null); setPromoInput(''); }} className="text-sm" style={{ color: 'var(--ink-soft)' }}>Remove</button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          value={promoInput}
+                          onChange={e => { setPromoInput(e.target.value.toUpperCase()); setPromoError(''); }}
+                          onKeyDown={e => { if (e.key === 'Enter') applyPromo(); }}
+                          placeholder="Have a promo code?"
+                          className="cg-input sm:flex-1 font-mono"
+                        />
+                        <button onClick={applyPromo} className="btn-secondary py-2.5 px-5 text-sm shrink-0">Apply</button>
+                      </div>
+                    )}
+                    {promoError && <p className="text-xs mt-2" style={{ color: 'var(--c-declined)' }}>{promoError}</p>}
+                  </div>
+                )}
+
+                {/* Recurring / standing appointment */}
+                {!selectedPackage && (
+                  <div className="p-5 rounded-2xl mb-4" style={{ background: 'var(--card-cream)', border: '1px solid var(--line)' }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <RefreshCw size={15} style={{ color: 'var(--ink-soft)' }} />
+                      <p className="text-sm font-medium" style={{ color: 'var(--ink)' }}>Make it a standing session</p>
+                    </div>
+                    <p className="text-xs mb-3" style={{ color: 'var(--ink-soft)' }}>Repeat this booking weekly at the same time.</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[1, 4, 8, 12].map(n => (
+                        <button key={n} type="button"
+                          onClick={() => setRecurringWeeks(n)}
+                          className="px-4 py-2 rounded-full text-sm transition-colors"
+                          style={{
+                            background: recurringWeeks === n ? 'var(--black)' : 'var(--paper-warm)',
+                            border: `1px solid ${recurringWeeks === n ? 'var(--black)' : 'var(--line-strong)'}`,
+                            color: recurringWeeks === n ? 'var(--paper)' : 'var(--ink)',
+                          }}>
+                          {n === 1 ? 'Just once' : `${n} weeks`}
+                        </button>
+                      ))}
+                    </div>
+                    {recurringWeeks > 1 && (
+                      <p className="text-xs mt-3" style={{ color: 'var(--ink-faint)' }}>
+                        Creates {recurringWeeks} sessions · {recurringWeeks}× ${totalPrice} = ${totalPrice * recurringWeeks} total over {recurringWeeks} weeks.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="p-4 rounded-xl flex items-center gap-4 mb-4" style={{ background: 'rgba(199,154,87,0.08)', border: '1px solid rgba(199,154,87,0.2)' }}>
+                  <CreditCard size={20} style={{ color: 'var(--c-reschedule)' }} />
+                  <p className="text-sm" style={{ color: 'var(--ink-soft)' }}>
+                    {instantBook
+                      ? 'This coach has instant booking — your session confirms immediately. Pay via Venmo after.'
+                      : "Payment is collected after the coach confirms your booking. You won't be charged until then."}
                   </p>
                 </div>
 
-                <div className="p-4 rounded-xl flex items-center gap-4 mb-6" style={{ background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.15)' }}>
-                  <CheckCircle2 size={20} style={{ color: '#22c55e' }} />
-                  <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                    <span className="text-white font-semibold">Good Fit Guarantee</span> — if your first session isn't the right fit, we'll connect you with another coach. No questions asked.
+                <div className="p-4 rounded-xl flex items-center gap-4 mb-6" style={{ background: 'rgba(94,140,90,0.08)', border: '1px solid rgba(94,140,90,0.2)' }}>
+                  <CheckCircle2 size={20} style={{ color: 'var(--c-confirmed)' }} />
+                  <p className="text-sm" style={{ color: 'var(--ink-soft)' }}>
+                    <span style={{ color: 'var(--ink)' }}>Good Fit Guarantee</span> — if your first session isn't the right fit, we'll connect you with another coach. No questions asked.
                   </p>
                 </div>
 
                 {priceError && (
-                  <div className="mb-4 p-4 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}>
+                  <div className="mb-4 p-4 rounded-xl text-sm" style={{ background: 'rgba(188,90,72,0.1)', border: '1px solid rgba(188,90,72,0.25)', color: 'var(--c-declined)' }}>
                     {priceError}
                   </div>
                 )}
 
-                <ShimmerButton
-                  shimmerColor="#4F8EF7"
-                  shimmerDuration="2.5s"
-                  borderRadius="12px"
-                  background="linear-gradient(135deg, #4F8EF7 0%, #2563EB 100%)"
-                  className="w-full py-4 text-lg font-bold flex items-center justify-center gap-2 mb-4 disabled:opacity-50"
+                <button
+                  className="btn-primary w-full py-4 text-base justify-center mb-4 disabled:opacity-50"
                   disabled={isSubmitting}
                   onClick={async () => {
                     if (!auth.currentUser) return;
@@ -708,25 +825,34 @@ export default function BookingPage() {
                     setPriceError('');
                     submittingRef.current = true;
                     setIsSubmitting(true);
+                    const bookingStatus = instantBook ? 'confirmed' : 'pending';
+                    const weeks = (!selectedPackage && recurringWeeks > 1) ? recurringWeeks : 1;
+                    const recurringGroupId = weeks > 1 ? `rec-${auth.currentUser.uid}-${Date.now()}` : null;
                     try {
-                      await addDoc(collection(db, 'bookings'), {
-                        player_id: auth.currentUser.uid,
-                        coach_id: coach?.user_id ?? coachId,
-                        coach_name: coach?.name ?? '',
-                        session_type: bookingData.sessionType,
-                        date: bookingData.date,
-                        time_slot: bookingData.time,
-                        player_name: bookingData.playerName,
-                        player_age: Number(bookingData.playerAge),
-                        skill_level: bookingData.skillLevel,
-                        notes: bookingData.notes,
-                        status: 'pending',
-                        total_price: totalPrice,
-                        is_package: !!selectedPackage,
-                        session_count: selectedPackage?.sessions ?? 1,
-                        coach_venmo_handle: coachVenmoHandle || null,
-                        created_at: serverTimestamp(),
-                      });
+                      for (let i = 0; i < weeks; i++) {
+                        await addDoc(collection(db, 'bookings'), {
+                          player_id: auth.currentUser.uid,
+                          coach_id: coach?.user_id ?? coachId,
+                          coach_name: coach?.name ?? '',
+                          session_type: bookingData.sessionType,
+                          date: addDaysISO(bookingData.date, i * 7),
+                          time_slot: bookingData.time,
+                          player_name: bookingData.playerName,
+                          player_age: Number(bookingData.playerAge),
+                          skill_level: bookingData.skillLevel,
+                          notes: bookingData.notes,
+                          status: bookingStatus,
+                          total_price: totalPrice,
+                          is_package: !!selectedPackage,
+                          session_count: selectedPackage?.sessions ?? 1,
+                          coach_venmo_handle: coachVenmoHandle || null,
+                          location_mode: bookingData.locationMode || 'facility',
+                          timezone: coachTimezone || getBrowserTimezone(),
+                          ...(appliedPromo && { promo_code: appliedPromo.code, discount_amount: discountAmount }),
+                          ...(recurringGroupId && { recurring_group_id: recurringGroupId, is_recurring: true }),
+                          created_at: serverTimestamp(),
+                        });
+                      }
 
                       try {
                         const coachUserDoc = await getDoc(doc(db, 'users', coach?.user_id ?? coachId!));
@@ -737,11 +863,28 @@ export default function BookingPage() {
                             coachEmail,
                             coachName: coach?.name ?? 'Coach',
                             playerName: bookingData.playerName,
-                            sessionType: bookingData.sessionType,
+                            sessionType: bookingData.sessionType + (weeks > 1 ? ` (weekly × ${weeks})` : ''),
                             date: bookingData.date,
                             timeSlot: bookingData.time,
                             totalPrice,
                           });
+                        }
+                        // Instant book → also tell the player it's confirmed
+                        if (instantBook) {
+                          const playerDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+                          const playerEmail = playerDoc.exists() ? playerDoc.data().email : auth.currentUser.email;
+                          if (playerEmail) {
+                            const { notifyPlayerBookingConfirmed } = await import('../utils/sendEmail');
+                            await notifyPlayerBookingConfirmed({
+                              playerEmail,
+                              playerName: bookingData.playerName,
+                              coachName: coach?.name ?? 'Coach',
+                              sessionType: bookingData.sessionType,
+                              date: bookingData.date,
+                              timeSlot: bookingData.time,
+                              totalPrice,
+                            });
+                          }
                         }
                       } catch (emailErr) {
                         console.error('Email notification failed:', emailErr);
@@ -757,14 +900,14 @@ export default function BookingPage() {
                   }}
                 >
                   {isSubmitting ? (
-                    <><Loader2 className="animate-spin" size={20} /> Sending Request...</>
+                    <><Loader2 className="animate-spin" size={20} /> {instantBook ? 'Booking…' : 'Sending request…'}</>
                   ) : (
-                    <>Confirm Booking Request — ${totalPrice}</>
+                    <>{instantBook ? 'Confirm booking' : 'Confirm booking request'} — ${totalPrice}{recurringWeeks > 1 ? `/wk` : ''}</>
                   )}
-                </ShimmerButton>
+                </button>
                 <button onClick={prevStep} disabled={isSubmitting}
-                  className="w-full py-3 text-sm font-bold disabled:opacity-50"
-                  style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  className="w-full py-3 text-sm disabled:opacity-50"
+                  style={{ color: 'var(--ink-soft)' }}>
                   Back
                 </button>
               </motion.div>
@@ -772,100 +915,91 @@ export default function BookingPage() {
 
             {/* STEP 5 — Confirmation */}
             {step === 5 && (
-              <motion.div key="step5" initial={{ opacity: 0, scale: prefersReduced ? 1 : 0.95 }} animate={{ opacity: 1, scale: 1, transition: { ...SPRING } }} className="text-center py-8">
-                {/* Animated check circle with SVG stroke */}
-                <div className="relative w-28 h-28 mx-auto mb-8">
+              <motion.div key="step5" initial={{ opacity: 0, scale: prefersReduced ? 1 : 0.97 }} animate={{ opacity: 1, scale: 1, transition: { ...SPRING } }} className="text-center py-6">
+                <div className="relative w-24 h-24 mx-auto mb-8">
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={{ ...SPRING, delay: 0.15 }}
-                    className="w-28 h-28 rounded-full flex items-center justify-center"
-                    style={{ background: 'linear-gradient(135deg, #4F8EF7, #2563EB)', boxShadow: '0 0 60px rgba(79,142,247,0.5)' }}
+                    className="w-24 h-24 rounded-full flex items-center justify-center"
+                    style={{ background: 'var(--black)' }}
                   >
-                    <svg viewBox="0 0 52 52" className="w-14 h-14">
-                      <motion.circle cx="26" cy="26" r="25" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
+                    <svg viewBox="0 0 52 52" className="w-12 h-12">
+                      <motion.circle cx="26" cy="26" r="25" fill="none" stroke="rgba(246,244,239,0.25)" strokeWidth="2" />
                       <motion.path
                         d="M14 26l8 8 16-16"
-                        fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                        fill="none" stroke="#F6F4EF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
                         initial={{ pathLength: 0, opacity: 0 }}
                         animate={{ pathLength: 1, opacity: 1 }}
                         transition={{ duration: 0.5, delay: 0.4, ease: 'easeOut' }}
                       />
                     </svg>
                   </motion.div>
-                  {/* Radiate ring */}
                   <motion.div
                     className="absolute inset-0 rounded-full"
-                    initial={{ scale: 1, opacity: 0.6 }}
-                    animate={{ scale: 1.8, opacity: 0 }}
+                    initial={{ scale: 1, opacity: 0.4 }}
+                    animate={{ scale: 1.7, opacity: 0 }}
                     transition={{ duration: 0.8, delay: 0.5 }}
-                    style={{ border: '2px solid rgba(79,142,247,0.5)' }}
+                    style={{ border: '2px solid var(--line-strong)' }}
                   />
                 </div>
 
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SPRING, delay: 0.45 }}>
-                  <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#4F8EF7' }}>Request Sent</p>
-                  {/* Character-by-character stagger */}
-                  <motion.h2
-                    className="text-3xl font-bold mb-4 text-white"
-                    variants={{ visible: { transition: { staggerChildren: 0.04, delayChildren: 0.55 } } }}
-                    initial="hidden"
-                    animate="visible"
-                  >
-                    {"You're all set!".split('').map((ch, i) => (
-                      <motion.span key={i} variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { ...SPRING } } }}
-                        className="inline-block" style={{ whiteSpace: ch === ' ' ? 'pre' : undefined }}>
-                        {ch}
-                      </motion.span>
-                    ))}
-                  </motion.h2>
-                  <p className="mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                    Your request has been sent to <strong className="text-white">{coach?.name}</strong>.
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SPRING, delay: 0.45 }}>
+                  <p className="eyebrow mb-4 inline-flex">{instantBook ? 'Booking confirmed' : 'Request sent'}</p>
+                  <h2 className="display-lg mb-4">You're all set!</h2>
+                  <p className="mb-1" style={{ color: 'var(--ink-soft)' }}>
+                    {instantBook
+                      ? <>Your session with <strong style={{ color: 'var(--ink)' }}>{coach?.name}</strong> is confirmed.</>
+                      : <>Your request has been sent to <strong style={{ color: 'var(--ink)' }}>{coach?.name}</strong>.</>}
                   </p>
-                  <p className="mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <p className="mb-1" style={{ color: 'var(--ink-soft)' }}>
                     {new Date(bookingData.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {bookingData.time}
+                    {coachTimezone ? ` ${tzAbbrev(coachTimezone)}` : ''}
+                    {recurringWeeks > 1 ? ` · repeats weekly × ${recurringWeeks}` : ''}
                   </p>
-                  <p className="mb-8 text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                    You'll receive an email once {coach?.name?.split(' ')[0]} confirms. Payment is due after confirmation.
+                  <p className="mb-8 text-sm" style={{ color: 'var(--ink-faint)' }}>
+                    {instantBook
+                      ? 'Pay via Venmo below. A calendar invite is ready to add.'
+                      : `You'll receive an email once ${coach?.name?.split(' ')[0]} confirms. Payment is due after confirmation.`}
                   </p>
                 </motion.div>
 
                 {/* Venmo Payment CTA */}
                 {coachVenmoHandle && (
                   <motion.div
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
                     className="max-w-sm mx-auto mb-6 rounded-2xl p-6"
-                    style={{ background: 'rgba(0,130,245,0.08)', border: '1px solid rgba(0,130,245,0.25)' }}
+                    style={{ background: 'rgba(0,140,255,0.06)', border: '1px solid rgba(0,140,255,0.25)' }}
                   >
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-bold text-white text-sm"
-                        style={{ background: '#008DF5' }}>
+                        style={{ background: 'var(--c-venmo)' }}>
                         V
                       </div>
                       <div className="text-left">
-                        <p className="font-bold text-white text-sm">Pay via Venmo</p>
-                        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Send payment once your coach confirms</p>
+                        <p className="text-sm" style={{ color: 'var(--ink)' }}>Pay via Venmo</p>
+                        <p className="text-xs" style={{ color: 'var(--ink-soft)' }}>Send payment once your coach confirms</p>
                       </div>
                     </div>
                     <a
                       href={buildVenmoUrl(coachVenmoHandle, totalPrice)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
-                      style={{ background: '#008DF5', color: 'white', boxShadow: '0 4px 20px rgba(0,141,245,0.35)' }}
+                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full text-sm transition-all hover:opacity-90 active:scale-[0.98]"
+                      style={{ background: 'var(--c-venmo)', color: 'white' }}
                     >
                       <ExternalLink size={15} />
                       Pay @{coachVenmoHandle} — ${totalPrice}
                     </a>
-                    <p className="text-xs mt-2 text-center" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                    <p className="text-xs mt-2 text-center" style={{ color: 'var(--ink-faint)' }}>
                       Only send payment AFTER the coach confirms your booking.
                     </p>
                   </motion.div>
                 )}
 
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: coachVenmoHandle ? 0.65 : 0.5, ease: [0.22, 1, 0.36, 1] }}
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: coachVenmoHandle ? 0.65 : 0.5, ease: [0.22, 1, 0.36, 1] }}
                   className="flex flex-col gap-3 max-w-sm mx-auto">
                   <a
                     href={generateCalendarLink(bookingData.date, bookingData.time, bookingData.sessionType, coach?.name || 'Coach', totalPrice)}
@@ -875,16 +1009,31 @@ export default function BookingPage() {
                   >
                     <ExternalLink size={16} /> Add to Google Calendar
                   </a>
-                  <Link to="/dashboard" className="btn-primary py-3 text-center">Go to Dashboard</Link>
-                  <Link to="/coaches" className="py-3 text-sm font-bold text-center" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                    Browse More Coaches
+                  <button
+                    onClick={() => downloadICS(
+                      `coachgo-${bookingData.date}`,
+                      buildICS({
+                        title: `CoachGo: ${bookingData.sessionType} with ${coach?.name || 'Coach'}`,
+                        description: `Session with ${coach?.name || 'your coach'} booked via CoachGo.`,
+                        location: bookingData.locationMode ? LOCATION_MODE_META[bookingData.locationMode].label : undefined,
+                        date: bookingData.date,
+                        slot: bookingData.time,
+                        recurrenceWeeks: recurringWeeks > 1 ? recurringWeeks : undefined,
+                      })
+                    )}
+                    className="btn-secondary py-3 flex items-center justify-center gap-2"
+                  >
+                    <Download size={16} /> Apple / Outlook (.ics)
+                  </button>
+                  <Link to="/dashboard" className="btn-primary py-3 text-center justify-center">Go to dashboard</Link>
+                  <Link to="/coaches" className="py-3 text-sm text-center" style={{ color: 'var(--ink-soft)' }}>
+                    Browse more coaches
                   </Link>
                 </motion.div>
               </motion.div>
             )}
 
           </AnimatePresence>
-          </div>
         </div>
       </div>
     </PageTransition>

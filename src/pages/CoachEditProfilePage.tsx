@@ -6,6 +6,8 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import PageTransition from '../components/PageTransition';
+import { getBrowserTimezone, tzAbbrev } from '../utils/scheduling';
+import type { PromoCode } from '../types';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 
 const SPECIALTIES = ['hitting', 'pitching', 'fielding', 'strength'];
@@ -91,7 +93,13 @@ export default function CoachEditProfilePage() {
     skills: [] as string[], certifications: [] as string[],
     photoUrl: '', venmoHandle: '',
     affiliations: [] as { name: string; logoUrl: string | null }[],
+    instantBook: false,
+    locationModes: { facility: true, travel: false, virtual: false },
+    bufferMinutes: 0,
+    academyName: '',
+    promoCodes: [] as PromoCode[],
   });
+  const [newPromo, setNewPromo] = useState<{ code: string; type: 'percent' | 'amount'; value: string }>({ code: '', type: 'percent', value: '' });
 
   useEffect(() => {
     if (!user) return;
@@ -121,6 +129,15 @@ export default function CoachEditProfilePage() {
             photoUrl: d.photo_url || '',
             venmoHandle: d.venmo_handle || '',
             affiliations: d.affiliations || [],
+            instantBook: d.instant_book === true,
+            locationModes: {
+              facility: d.location_modes?.facility ?? true,
+              travel: d.location_modes?.travel ?? false,
+              virtual: d.location_modes?.virtual ?? false,
+            },
+            bufferMinutes: Number(d.buffer_minutes) || 0,
+            academyName: d.academy_name || '',
+            promoCodes: Array.isArray(d.promo_codes) ? d.promo_codes : [],
           });
           if (d.photo_url) setPhotoPreview(d.photo_url);
           if (d.video_url) setVideoUploadedUrl(d.video_url);
@@ -223,6 +240,12 @@ export default function CoachEditProfilePage() {
         venmo_handle: profile.venmoHandle.replace('@', '').trim(),
         affiliations: profile.affiliations,
         video_url: videoUploadedUrl || null,
+        instant_book: profile.instantBook,
+        location_modes: profile.locationModes,
+        buffer_minutes: Number(profile.bufferMinutes) || 0,
+        timezone: getBrowserTimezone(),
+        academy_name: profile.academyName.trim() || null,
+        promo_codes: profile.promoCodes,
         is_active: true,
         updated_at: serverTimestamp(),
       }, { merge: true });
@@ -233,28 +256,28 @@ export default function CoachEditProfilePage() {
     } finally { setIsSubmitting(false); }
   };
 
-  const inputStyle = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'white' };
-  const cardStyle = { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' };
-  const iconStyle = { background: 'rgba(79,142,247,0.1)', color: '#4F8EF7' };
+  const inputStyle = { background: '#FFFFFF', border: '1px solid rgba(27,24,19,0.16)', color: '#1B1813' };
+  const cardStyle = { background: 'var(--card-cream)', border: '1px solid var(--line)' };
+  const iconStyle = { background: 'rgba(27,24,19,0.1)', color: '#1B1813' };
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#0A0F1E' }}>
-      <Loader2 className="animate-spin" size={40} style={{ color: '#4F8EF7' }} />
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#F6F4EF' }}>
+      <Loader2 className="animate-spin" size={40} style={{ color: '#1B1813' }} />
     </div>
   );
 
   return (
     <PageTransition>
-      <div className="min-h-screen" style={{ background: '#0A0F1E' }}>
+      <div className="min-h-screen" style={{ background: '#F6F4EF' }}>
 
         {/* Header */}
-        <div className="py-12 pt-28" style={{ background: 'rgba(79,142,247,0.05)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="py-12 pt-28" style={{ background: 'rgba(27,24,19,0.05)', borderBottom: '1px solid rgba(27,24,19,0.06)' }}>
           <div className="max-w-3xl mx-auto px-4">
-            <Link to="/dashboard" className="flex items-center gap-2 text-sm font-medium mb-6 w-fit" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <Link to="/dashboard" className="flex items-center gap-2 text-sm font-medium mb-6 w-fit" style={{ color: 'rgba(27,24,19,0.4)' }}>
               <ArrowLeft size={16} /> Back to Dashboard
             </Link>
-            <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#4F8EF7' }}>Coach Settings</p>
-            <h1 className="text-3xl font-bold text-white">Edit Your Profile</h1>
+            <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#1B1813' }}>Coach Settings</p>
+            <h1 className="text-3xl font-bold text-ink">Edit Your Profile</h1>
           </div>
         </div>
 
@@ -267,19 +290,19 @@ export default function CoachEditProfilePage() {
                 <Camera size={20} />
               </div>
               <div>
-                <h2 className="font-bold text-white">Profile Photo</h2>
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Upload your headshot (max 5MB)</p>
+                <h2 className="font-bold text-ink">Profile Photo</h2>
+                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>Upload your headshot (max 5MB)</p>
               </div>
             </div>
             <div className="flex items-center gap-8">
               <div className="relative shrink-0">
                 <div className="w-32 h-32 rounded-2xl overflow-hidden"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  style={{ background: 'rgba(27,24,19,0.05)', border: '1px solid rgba(27,24,19,0.08)' }}>
                   {photoPreview ? (
                     <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <Camera size={32} style={{ color: 'rgba(255,255,255,0.15)' }} />
+                      <Camera size={32} style={{ color: 'rgba(27,24,19,0.15)' }} />
                     </div>
                   )}
                 </div>
@@ -287,7 +310,7 @@ export default function CoachEditProfilePage() {
                   <button
                     onClick={() => { setPhotoPreview(null); setPhotoFile(null); setProfile(p => ({ ...p, photoUrl: '' })); }}
                     className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center"
-                    style={{ background: '#ef4444', color: 'white' }}>
+                    style={{ background: '#BC5A48', color: 'white' }}>
                     <X size={12} />
                   </button>
                 )}
@@ -295,11 +318,11 @@ export default function CoachEditProfilePage() {
               <div className="flex-1">
                 {isUploading ? (
                   <div>
-                    <div className="flex justify-between text-xs mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    <div className="flex justify-between text-xs mb-2" style={{ color: 'rgba(27,24,19,0.4)' }}>
                       <span>Uploading...</span><span>{uploadProgress}%</span>
                     </div>
-                    <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                      <div className="h-full rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%`, background: '#4F8EF7' }} />
+                    <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgba(27,24,19,0.05)' }}>
+                      <div className="h-full rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%`, background: '#1B1813' }} />
                     </div>
                   </div>
                 ) : (
@@ -308,7 +331,7 @@ export default function CoachEditProfilePage() {
                     <button onClick={() => fileInputRef.current?.click()} className="btn-secondary py-3 px-6 text-sm mb-3 w-full">
                       {photoPreview ? 'Change Photo' : 'Upload Photo'}
                     </button>
-                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>JPG, PNG or WebP. Saved when you click Save Changes.</p>
+                    <p className="text-xs" style={{ color: 'rgba(27,24,19,0.25)' }}>JPG, PNG or WebP. Saved when you click Save Changes.</p>
                   </>
                 )}
               </div>
@@ -319,32 +342,32 @@ export default function CoachEditProfilePage() {
           <div className="rounded-3xl p-8" style={cardStyle}>
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={iconStyle}><Target size={20} /></div>
-              <h2 className="font-bold text-white">Specialty</h2>
+              <h2 className="font-bold text-ink">Specialty</h2>
             </div>
-            <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>Primary</label>
+            <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(27,24,19,0.4)' }}>Primary</label>
             <div className="grid grid-cols-2 gap-3 mb-6">
               {SPECIALTIES.map(spec => (
                 <button key={spec} onClick={() => setProfile(p => ({ ...p, specialty: spec, skills: [] }))}
                   className="p-4 rounded-xl border-2 capitalize font-bold text-sm transition-all"
                   style={{
-                    borderColor: profile.specialty === spec ? '#4F8EF7' : 'rgba(255,255,255,0.08)',
-                    background: profile.specialty === spec ? 'rgba(79,142,247,0.15)' : 'transparent',
-                    color: profile.specialty === spec ? '#4F8EF7' : 'rgba(255,255,255,0.5)',
+                    borderColor: profile.specialty === spec ? '#1B1813' : 'rgba(27,24,19,0.08)',
+                    background: profile.specialty === spec ? 'rgba(27,24,19,0.15)' : 'transparent',
+                    color: profile.specialty === spec ? '#1B1813' : 'rgba(27,24,19,0.5)',
                   }}>
                   {spec}
                 </button>
               ))}
             </div>
-            <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>Secondary (optional)</label>
+            <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(27,24,19,0.4)' }}>Secondary (optional)</label>
             <div className="grid grid-cols-2 gap-3">
               {SPECIALTIES.filter(s => s !== profile.specialty).map(spec => (
                 <button key={spec}
                   onClick={() => setProfile(p => ({ ...p, secondarySpecialty: p.secondarySpecialty === spec ? '' : spec }))}
                   className="p-4 rounded-xl border-2 capitalize font-bold text-sm transition-all"
                   style={{
-                    borderColor: profile.secondarySpecialty === spec ? '#4F8EF7' : 'rgba(255,255,255,0.08)',
-                    background: profile.secondarySpecialty === spec ? 'rgba(79,142,247,0.15)' : 'transparent',
-                    color: profile.secondarySpecialty === spec ? '#4F8EF7' : 'rgba(255,255,255,0.5)',
+                    borderColor: profile.secondarySpecialty === spec ? '#1B1813' : 'rgba(27,24,19,0.08)',
+                    background: profile.secondarySpecialty === spec ? 'rgba(27,24,19,0.15)' : 'transparent',
+                    color: profile.secondarySpecialty === spec ? '#1B1813' : 'rgba(27,24,19,0.5)',
                   }}>
                   {spec}
                 </button>
@@ -357,8 +380,8 @@ export default function CoachEditProfilePage() {
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={iconStyle}><User size={20} /></div>
               <div>
-                <h2 className="font-bold text-white">About You</h2>
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Write your bio as bullet points</p>
+                <h2 className="font-bold text-ink">About You</h2>
+                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>Write your bio as bullet points</p>
               </div>
             </div>
 
@@ -388,21 +411,21 @@ export default function CoachEditProfilePage() {
                 className="w-full rounded-xl p-4 text-sm resize-none"
                 style={{ ...inputStyle, lineHeight: '1.8' }}
               />
-              <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              <p className="text-xs mt-2" style={{ color: 'rgba(27,24,19,0.3)' }}>
                 Each line auto-formats as a bullet point. Press Enter for a new one.
               </p>
             </div>
 
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.5rem' }}>
-              <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>Skills (up to 6)</label>
+            <div style={{ borderTop: '1px solid rgba(27,24,19,0.06)', paddingTop: '1.5rem' }}>
+              <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(27,24,19,0.4)' }}>Skills (up to 6)</label>
               <div className="flex flex-wrap gap-2">
                 {(skillSuggestions[profile.specialty] || []).map(skill => (
                   <button key={skill} onClick={() => toggleSkill(skill)}
                     className="px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all"
                     style={{
-                      borderColor: profile.skills.includes(skill) ? '#4F8EF7' : 'rgba(255,255,255,0.08)',
-                      background: profile.skills.includes(skill) ? 'rgba(79,142,247,0.15)' : 'transparent',
-                      color: profile.skills.includes(skill) ? '#4F8EF7' : 'rgba(255,255,255,0.4)',
+                      borderColor: profile.skills.includes(skill) ? '#1B1813' : 'rgba(27,24,19,0.08)',
+                      background: profile.skills.includes(skill) ? 'rgba(27,24,19,0.15)' : 'transparent',
+                      color: profile.skills.includes(skill) ? '#1B1813' : 'rgba(27,24,19,0.4)',
                     }}>
                     {skill}
                   </button>
@@ -413,14 +436,14 @@ export default function CoachEditProfilePage() {
                   {profile.skills.filter(s => !(skillSuggestions[profile.specialty] || []).includes(s)).map(skill => (
                     <button key={skill} onClick={() => toggleSkill(skill)}
                       className="px-4 py-2 rounded-xl text-sm font-bold transition-all"
-                      style={{ background: 'rgba(124,58,237,0.2)', border: '1px solid #7C3AED', color: '#A78BFA' }}>
+                      style={{ background: 'rgba(27,24,19,0.2)', border: '1px solid #8A7BA8', color: '#8A7BA8' }}>
                       <CheckCircle2 size={12} className="inline mr-1" />{skill}
                     </button>
                   ))}
                 </div>
               )}
               {profile.specialty && (
-                <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.3)' }}>{profile.skills.length}/6 selected</p>
+                <p className="text-xs mt-2" style={{ color: 'rgba(27,24,19,0.3)' }}>{profile.skills.length}/6 selected</p>
               )}
               {showCustomSkillInput ? (
                 <div className="flex gap-2 mt-3">
@@ -449,7 +472,7 @@ export default function CoachEditProfilePage() {
                       setShowCustomSkillInput(false);
                     }}
                     className="px-4 rounded-xl text-sm font-bold"
-                    style={{ background: 'rgba(124,58,237,0.2)', color: '#A78BFA', border: '1px solid rgba(124,58,237,0.3)' }}>
+                    style={{ background: 'rgba(27,24,19,0.2)', color: '#8A7BA8', border: '1px solid rgba(27,24,19,0.3)' }}>
                     Add
                   </button>
                 </div>
@@ -458,7 +481,7 @@ export default function CoachEditProfilePage() {
                   onClick={() => setShowCustomSkillInput(true)}
                   disabled={profile.skills.length >= 6}
                   className="flex items-center gap-1.5 text-xs font-bold mt-3 px-3 py-2 rounded-xl transition-all disabled:opacity-30"
-                  style={{ color: '#A78BFA', border: '1px solid rgba(124,58,237,0.25)', background: 'rgba(124,58,237,0.08)' }}>
+                  style={{ color: '#8A7BA8', border: '1px solid rgba(27,24,19,0.25)', background: 'rgba(27,24,19,0.08)' }}>
                   <Plus size={12} /> Add Custom Skill
                 </button>
               )}
@@ -468,12 +491,12 @@ export default function CoachEditProfilePage() {
           {/* Affiliations */}
           <div className="rounded-3xl p-8" style={cardStyle}>
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(94,140,90,0.1)', color: '#5E8C5A' }}>
                 <Award size={20} />
               </div>
               <div>
-                <h2 className="font-bold text-white">Professional Affiliations</h2>
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Teams, colleges, or leagues you've played or coached for</p>
+                <h2 className="font-bold text-ink">Professional Affiliations</h2>
+                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>Teams, colleges, or leagues you've played or coached for</p>
               </div>
             </div>
 
@@ -481,11 +504,11 @@ export default function CoachEditProfilePage() {
               <div className="flex flex-wrap gap-2 mb-4">
                 {profile.affiliations.map(aff => (
                   <div key={aff.name} className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    style={{ background: 'rgba(27,24,19,0.06)', border: '1px solid rgba(27,24,19,0.1)' }}>
                     {aff.logoUrl && (
                       <img src={aff.logoUrl} alt={aff.name} className="w-5 h-5 object-contain" />
                     )}
-                    <span className="text-sm font-medium text-white">{aff.name}</span>
+                    <span className="text-sm font-medium text-ink">{aff.name}</span>
                     <button
                       onClick={() => setProfile(p => ({ ...p, affiliations: p.affiliations.filter(a => a.name !== aff.name) }))}
                       className="opacity-50 hover:opacity-100 ml-1 text-xs">✕</button>
@@ -496,8 +519,8 @@ export default function CoachEditProfilePage() {
 
             <div className="relative">
               <div className="flex items-center gap-2 rounded-xl px-4 py-3"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <Search size={16} style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
+                style={{ background: 'rgba(27,24,19,0.05)', border: '1px solid rgba(27,24,19,0.08)' }}>
+                <Search size={16} style={{ color: 'rgba(27,24,19,0.3)', flexShrink: 0 }} />
                 <input
                   type="text"
                   placeholder="Search teams, colleges, leagues..."
@@ -505,12 +528,12 @@ export default function CoachEditProfilePage() {
                   onChange={e => { setAffiliationSearch(e.target.value); setShowAffiliationDropdown(true); }}
                   onFocus={() => setShowAffiliationDropdown(true)}
                   onBlur={() => setTimeout(() => setShowAffiliationDropdown(false), 150)}
-                  className="flex-1 bg-transparent text-sm text-white focus:outline-none"
+                  className="flex-1 bg-transparent text-sm text-ink focus:outline-none"
                 />
               </div>
               {showAffiliationDropdown && affiliationSearch.length > 0 && (
                 <div className="absolute z-20 w-full mt-2 rounded-2xl overflow-hidden shadow-xl"
-                  style={{ background: '#1a1f2e', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  style={{ background: '#F0EBE2', border: '1px solid rgba(27,24,19,0.1)' }}>
                   {AFFILIATION_OPTIONS.filter(o =>
                     !profile.affiliations.find(a => a.name === o.name) &&
                     o.name.toLowerCase().includes(affiliationSearch.toLowerCase())
@@ -522,19 +545,19 @@ export default function CoachEditProfilePage() {
                         setAffiliationSearch('');
                         setShowAffiliationDropdown(false);
                       }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-white/5 transition-colors"
-                      style={{ color: 'rgba(255,255,255,0.8)' }}>
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-[rgba(27,24,19,0.04)] transition-colors"
+                      style={{ color: 'rgba(27,24,19,0.8)' }}>
                       {opt.logoUrl ? (
                         <img src={opt.logoUrl} alt={opt.name} className="w-6 h-6 object-contain shrink-0" />
                       ) : (
                         <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
-                          style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}>
+                          style={{ background: 'rgba(27,24,19,0.08)', color: 'rgba(27,24,19,0.4)' }}>
                           {opt.name[0]}
                         </div>
                       )}
                       <div>
                         <div className="font-medium">{opt.name}</div>
-                        <div className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>{opt.category}</div>
+                        <div className="text-xs" style={{ color: 'rgba(27,24,19,0.35)' }}>{opt.category}</div>
                       </div>
                     </button>
                   ))}
@@ -542,7 +565,7 @@ export default function CoachEditProfilePage() {
                     !profile.affiliations.find(a => a.name === o.name) &&
                     o.name.toLowerCase().includes(affiliationSearch.toLowerCase())
                   ).length === 0 && (
-                    <div className="px-4 py-3 text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>No results found</div>
+                    <div className="px-4 py-3 text-sm" style={{ color: 'rgba(27,24,19,0.3)' }}>No results found</div>
                   )}
                 </div>
               )}
@@ -553,13 +576,13 @@ export default function CoachEditProfilePage() {
           <div className="rounded-3xl p-8" style={cardStyle}>
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={iconStyle}><Award size={20} /></div>
-              <h2 className="font-bold text-white">Certifications</h2>
+              <h2 className="font-bold text-ink">Certifications</h2>
             </div>
             {profile.certifications.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-4">
                 {profile.certifications.map(cert => (
                   <div key={cert} className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-bold"
-                    style={{ background: 'rgba(79,142,247,0.12)', border: '1px solid rgba(79,142,247,0.25)', color: '#4F8EF7' }}>
+                    style={{ background: 'rgba(27,24,19,0.12)', border: '1px solid rgba(27,24,19,0.25)', color: '#1B1813' }}>
                     {cert}
                     <button onClick={() => removeCert(cert)} className="opacity-60 hover:opacity-100 ml-1">✕</button>
                   </div>
@@ -573,7 +596,7 @@ export default function CoachEditProfilePage() {
                 className="flex-1 rounded-xl p-4 text-sm" style={inputStyle} />
               <button onClick={() => addCert(certInput)} disabled={!certInput.trim()}
                 className="px-4 rounded-xl font-bold text-sm disabled:opacity-30"
-                style={{ background: 'rgba(79,142,247,0.2)', color: '#4F8EF7', border: '1px solid rgba(79,142,247,0.3)' }}>
+                style={{ background: 'rgba(27,24,19,0.2)', color: '#1B1813', border: '1px solid rgba(27,24,19,0.3)' }}>
                 Add
               </button>
             </div>
@@ -581,7 +604,7 @@ export default function CoachEditProfilePage() {
               {CERT_SUGGESTIONS.filter(c => !profile.certifications.includes(c)).map(cert => (
                 <button key={cert} onClick={() => addCert(cert)}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}>
+                  style={{ background: 'rgba(27,24,19,0.04)', border: '1px solid rgba(27,24,19,0.08)', color: 'rgba(27,24,19,0.4)' }}>
                   + {cert}
                 </button>
               ))}
@@ -593,8 +616,8 @@ export default function CoachEditProfilePage() {
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={iconStyle}><DollarSign size={20} /></div>
               <div>
-                <h2 className="font-bold text-white">Pricing & Experience</h2>
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Set your rate for each session type you offer</p>
+                <h2 className="font-bold text-ink">Pricing & Experience</h2>
+                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>Set your rate for each session type you offer</p>
               </div>
             </div>
 
@@ -610,12 +633,12 @@ export default function CoachEditProfilePage() {
                       updated[idx] = { ...updated[idx], label: e.target.value };
                       return { ...p, sessionTypes: updated };
                     })}
-                    className="flex-1 rounded-xl p-4 text-sm text-white focus:outline-none"
+                    className="flex-1 rounded-xl p-4 text-sm text-ink focus:outline-none"
                     style={inputStyle}
                   />
                   <div className="flex items-center rounded-xl overflow-hidden shrink-0"
-                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                    <span className="pl-3 text-sm font-bold shrink-0" style={{ color: 'rgba(255,255,255,0.35)' }}>$</span>
+                    style={{ background: 'rgba(27,24,19,0.05)', border: '1px solid rgba(27,24,19,0.08)' }}>
+                    <span className="pl-3 text-sm font-bold shrink-0" style={{ color: 'rgba(27,24,19,0.35)' }}>$</span>
                     <input
                       type="number"
                       placeholder="100"
@@ -625,16 +648,16 @@ export default function CoachEditProfilePage() {
                         updated[idx] = { ...updated[idx], price: e.target.value };
                         return { ...p, sessionTypes: updated };
                       })}
-                      className="w-24 bg-transparent py-4 pr-3 pl-1 text-sm text-white focus:outline-none"
-                      style={{ colorScheme: 'dark' }}
+                      className="w-24 bg-transparent py-4 pr-3 pl-1 text-sm text-ink focus:outline-none"
+                      style={{ colorScheme: 'light' }}
                     />
                   </div>
                   {profile.sessionTypes.length > 1 && (
                     <button
                       type="button"
                       onClick={() => setProfile(p => ({ ...p, sessionTypes: p.sessionTypes.filter((_, i) => i !== idx) }))}
-                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all hover:bg-red-500/10"
-                      style={{ color: 'rgba(239,68,68,0.6)', border: '1px solid rgba(239,68,68,0.15)' }}>
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all hover:bg-[rgba(188,90,72,0.1)]"
+                      style={{ color: 'rgba(188,90,72,0.6)', border: '1px solid rgba(188,90,72,0.15)' }}>
                       <X size={16} />
                     </button>
                   )}
@@ -644,13 +667,13 @@ export default function CoachEditProfilePage() {
             <button
               type="button"
               onClick={() => setProfile(p => ({ ...p, sessionTypes: [...p.sessionTypes, { label: '', price: '' }] }))}
-              className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest px-4 py-2.5 rounded-xl mb-6 transition-all hover:bg-blue-500/10"
-              style={{ color: '#4F8EF7', border: '1px solid rgba(79,142,247,0.2)' }}>
+              className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest px-4 py-2.5 rounded-xl mb-6 transition-all hover:bg-[rgba(27,24,19,0.05)]"
+              style={{ color: '#1B1813', border: '1px solid rgba(27,24,19,0.2)' }}>
               <Plus size={14} /> Add Session Type
             </button>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Years Experience</label>
+              <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(27,24,19,0.4)' }}>Years Experience</label>
               <input type="number" value={profile.yearsExperience}
                 onChange={e => setProfile(p => ({ ...p, yearsExperience: e.target.value }))}
                 placeholder="5" className="w-full rounded-xl p-4 text-sm" style={inputStyle} />
@@ -661,7 +684,7 @@ export default function CoachEditProfilePage() {
           <div className="rounded-3xl p-8" style={cardStyle}>
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={iconStyle}><MapPin size={20} /></div>
-              <h2 className="font-bold text-white">Location</h2>
+              <h2 className="font-bold text-ink">Location</h2>
             </div>
             <div className="space-y-4">
               <input type="text" value={profile.streetAddress}
@@ -686,15 +709,15 @@ export default function CoachEditProfilePage() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="font-bold text-white">Venmo Handle <span style={{ color: '#ef4444' }}>*</span></h2>
-                  <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>Required</span>
+                  <h2 className="font-bold text-ink">Venmo Handle <span style={{ color: '#BC5A48' }}>*</span></h2>
+                  <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: 'rgba(188,90,72,0.1)', color: '#BC5A48', border: '1px solid rgba(188,90,72,0.2)' }}>Required</span>
                 </div>
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Players pay you directly via Venmo after sessions</p>
+                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>Players pay you directly via Venmo after sessions</p>
               </div>
             </div>
             <div id="venmo-input" className="flex items-center gap-3 rounded-xl overflow-hidden"
-              style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${venmoError ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)'}` }}>
-              <span className="pl-4 font-bold text-sm shrink-0" style={{ color: 'rgba(255,255,255,0.3)' }}>@</span>
+              style={{ background: 'rgba(27,24,19,0.05)', border: `1px solid ${venmoError ? 'rgba(188,90,72,0.5)' : 'rgba(27,24,19,0.08)'}` }}>
+              <span className="pl-4 font-bold text-sm shrink-0" style={{ color: 'rgba(27,24,19,0.3)' }}>@</span>
               <input
                 type="text"
                 value={profile.venmoHandle}
@@ -703,28 +726,198 @@ export default function CoachEditProfilePage() {
                   setProfile(p => ({ ...p, venmoHandle: e.target.value.replace('@', '').replace(/\s/g, '') }));
                 }}
                 placeholder="your-venmo-username"
-                className="flex-1 bg-transparent py-4 pr-4 text-sm text-white focus:outline-none"
+                className="flex-1 bg-transparent py-4 pr-4 text-sm text-ink focus:outline-none"
               />
             </div>
             {venmoError && (
-              <p className="text-xs mt-2 font-medium" style={{ color: '#ef4444' }}>{venmoError}</p>
+              <p className="text-xs mt-2 font-medium" style={{ color: '#BC5A48' }}>{venmoError}</p>
             )}
             {!venmoError && profile.venmoHandle && (
-              <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              <p className="text-xs mt-2" style={{ color: 'rgba(27,24,19,0.3)' }}>
                 Students will pay: venmo.com/u/{profile.venmoHandle}
               </p>
             )}
           </div>
 
+          {/* Booking settings */}
+          <div className="rounded-3xl p-8" style={cardStyle}>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--paper-warm)', color: 'var(--ink)' }}>
+                <CheckCircle2 size={20} />
+              </div>
+              <div>
+                <h2 className="font-bold text-ink">Booking settings</h2>
+                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>How players book time with you</p>
+              </div>
+            </div>
+
+            {/* Instant book */}
+            <button
+              type="button"
+              onClick={() => setProfile(p => ({ ...p, instantBook: !p.instantBook }))}
+              className="w-full flex items-center justify-between gap-4 p-4 rounded-2xl mb-5 text-left transition-colors"
+              style={{ background: 'var(--paper-warm)', border: '1px solid var(--line)' }}
+            >
+              <div>
+                <p className="text-sm font-medium text-ink">Instant book</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--ink-soft)' }}>
+                  {profile.instantBook
+                    ? 'Sessions are confirmed automatically — no approval step.'
+                    : 'You review and approve each request (request to book).'}
+                </p>
+              </div>
+              <span className="shrink-0 w-12 h-7 rounded-full flex items-center transition-colors" style={{ background: profile.instantBook ? 'var(--black)' : 'rgba(27,24,19,0.16)', padding: 3 }}>
+                <span className="w-5 h-5 rounded-full bg-white transition-transform" style={{ transform: profile.instantBook ? 'translateX(20px)' : 'translateX(0)' }} />
+              </span>
+            </button>
+
+            {/* Location modes */}
+            <p className="text-xs uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--ink-faint)' }}>Session locations you offer</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-5">
+              {([
+                { key: 'facility' as const, label: 'At facility' },
+                { key: 'travel' as const, label: 'Travel to player' },
+                { key: 'virtual' as const, label: 'Virtual' },
+              ]).map(opt => {
+                const on = profile.locationModes[opt.key];
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setProfile(p => ({ ...p, locationModes: { ...p.locationModes, [opt.key]: !p.locationModes[opt.key] } }))}
+                    className="px-4 py-3 rounded-xl text-sm transition-colors"
+                    style={{
+                      background: on ? 'var(--black)' : 'var(--card-cream)',
+                      border: `1px solid ${on ? 'var(--black)' : 'var(--line-strong)'}`,
+                      color: on ? 'var(--paper)' : 'var(--ink-soft)',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Buffer */}
+            <p className="text-xs uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--ink-faint)' }}>Buffer between sessions</p>
+            <div className="flex flex-wrap gap-2">
+              {[0, 15, 30, 45, 60].map(min => (
+                <button
+                  key={min}
+                  type="button"
+                  onClick={() => setProfile(p => ({ ...p, bufferMinutes: min }))}
+                  className="px-4 py-2 rounded-full text-sm transition-colors"
+                  style={{
+                    background: profile.bufferMinutes === min ? 'var(--black)' : 'var(--card-cream)',
+                    border: `1px solid ${profile.bufferMinutes === min ? 'var(--black)' : 'var(--line-strong)'}`,
+                    color: profile.bufferMinutes === min ? 'var(--paper)' : 'var(--ink-soft)',
+                  }}
+                >
+                  {min === 0 ? 'None' : `${min} min`}
+                </button>
+              ))}
+            </div>
+            {/* Academy / facility */}
+            <p className="text-xs uppercase tracking-[0.14em] mt-6 mb-2" style={{ color: 'var(--ink-faint)' }}>Academy / facility (optional)</p>
+            <input
+              type="text"
+              value={profile.academyName}
+              onChange={e => setProfile(p => ({ ...p, academyName: e.target.value }))}
+              placeholder="e.g. The Upper Deck, 1RM Performance"
+              className="cg-input"
+            />
+
+            <p className="text-xs mt-4" style={{ color: 'var(--ink-faint)' }}>
+              Your timezone: {tzAbbrev(getBrowserTimezone())} · used for reminders & calendar invites.
+            </p>
+          </div>
+
+          {/* Promo codes */}
+          <div className="rounded-3xl p-8" style={cardStyle}>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--paper-warm)', color: 'var(--ink)' }}>
+                <DollarSign size={20} />
+              </div>
+              <div>
+                <h2 className="font-bold text-ink">Promo codes</h2>
+                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>Discounts players can apply at checkout</p>
+              </div>
+            </div>
+
+            {profile.promoCodes.length > 0 && (
+              <div className="space-y-2 mb-5">
+                {profile.promoCodes.map((pc, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--paper-warm)', border: '1px solid var(--line)' }}>
+                    <span className="font-mono text-sm font-bold px-2 py-1 rounded" style={{ background: 'var(--card-cream)', color: 'var(--ink)', border: '1px solid var(--line)' }}>{pc.code}</span>
+                    <span className="text-sm" style={{ color: 'var(--ink-soft)' }}>
+                      {pc.type === 'percent' ? `${pc.value}% off` : `$${pc.value} off`}
+                    </span>
+                    <div className="flex-1" />
+                    <button type="button"
+                      onClick={() => setProfile(p => ({ ...p, promoCodes: p.promoCodes.map((x, xi) => xi === i ? { ...x, active: !x.active } : x) }))}
+                      className="text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full"
+                      style={{ background: pc.active ? 'rgba(94,140,90,0.15)' : 'transparent', color: pc.active ? 'var(--c-confirmed)' : 'var(--ink-faint)', border: `1px solid ${pc.active ? 'rgba(94,140,90,0.3)' : 'var(--line-strong)'}` }}>
+                      {pc.active ? 'Active' : 'Paused'}
+                    </button>
+                    <button type="button"
+                      onClick={() => setProfile(p => ({ ...p, promoCodes: p.promoCodes.filter((_, xi) => xi !== i) }))}
+                      className="p-1.5 rounded-full transition-colors hover:bg-[rgba(188,90,72,0.1)]" style={{ color: 'var(--c-declined)' }} aria-label="Remove code">
+                      <X size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={newPromo.code}
+                onChange={e => setNewPromo(p => ({ ...p, code: e.target.value.toUpperCase().replace(/\s/g, '') }))}
+                placeholder="CODE"
+                className="cg-input sm:flex-1 font-mono"
+              />
+              <select
+                value={newPromo.type}
+                onChange={e => setNewPromo(p => ({ ...p, type: e.target.value as 'percent' | 'amount' }))}
+                className="cg-input cursor-pointer sm:w-32"
+              >
+                <option value="percent">% off</option>
+                <option value="amount">$ off</option>
+              </select>
+              <input
+                type="number" min="1"
+                value={newPromo.value}
+                onChange={e => setNewPromo(p => ({ ...p, value: e.target.value }))}
+                placeholder={newPromo.type === 'percent' ? '10' : '20'}
+                className="cg-input sm:w-28"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const code = newPromo.code.trim();
+                  const value = Number(newPromo.value);
+                  if (!code || !value || value <= 0) return;
+                  if (profile.promoCodes.some(p => p.code === code)) return;
+                  setProfile(p => ({ ...p, promoCodes: [...p.promoCodes, { code, type: newPromo.type, value, active: true }] }));
+                  setNewPromo({ code: '', type: 'percent', value: '' });
+                }}
+                className="btn-primary py-2.5 px-5 text-sm shrink-0"
+              >
+                <Plus size={15} /> Add
+              </button>
+            </div>
+          </div>
+
           {/* Video Intro */}
           <div className="rounded-3xl p-8" style={cardStyle}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(124,58,237,0.12)', color: '#7C3AED' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(27,24,19,0.12)', color: '#8A7BA8' }}>
                 <Video size={20} />
               </div>
               <div>
-                <h2 className="font-bold text-white">Intro Video</h2>
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Introduce yourself to players — coaches with intro videos get 5x more bookings</p>
+                <h2 className="font-bold text-ink">Intro Video</h2>
+                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>Introduce yourself to players — coaches with intro videos get 5x more bookings</p>
               </div>
             </div>
 
@@ -738,36 +931,36 @@ export default function CoachEditProfilePage() {
               <div className="grid grid-cols-2 gap-3 mt-2">
                 <button type="button" onClick={() => videoRecordRef.current?.click()}
                   className="flex flex-col items-center gap-2 rounded-2xl p-5 transition-all"
-                  style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', color: '#A78BFA' }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(124,58,237,0.15)' }}>
+                  style={{ background: 'rgba(27,24,19,0.08)', border: '1px solid rgba(27,24,19,0.2)', color: '#8A7BA8' }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(27,24,19,0.15)' }}>
                     <Video size={20} />
                   </div>
                   <span className="text-sm font-bold">Record Now</span>
-                  <span className="text-xs text-center" style={{ color: 'rgba(255,255,255,0.35)' }}>Use your webcam or phone camera</span>
+                  <span className="text-xs text-center" style={{ color: 'rgba(27,24,19,0.35)' }}>Use your webcam or phone camera</span>
                 </button>
                 <button type="button" onClick={() => videoUploadRef.current?.click()}
                   className="flex flex-col items-center gap-2 rounded-2xl p-5 transition-all"
-                  style={{ background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)', color: '#93C5FD' }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(79,142,247,0.15)' }}>
+                  style={{ background: 'rgba(27,24,19,0.08)', border: '1px solid rgba(27,24,19,0.2)', color: '#6E665A' }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(27,24,19,0.15)' }}>
                     <Upload size={20} />
                   </div>
                   <span className="text-sm font-bold">Upload Video</span>
-                  <span className="text-xs text-center" style={{ color: 'rgba(255,255,255,0.35)' }}>MP4, MOV, AVI, WebM</span>
+                  <span className="text-xs text-center" style={{ color: 'rgba(27,24,19,0.35)' }}>MP4, MOV, AVI, WebM</span>
                 </button>
               </div>
             )}
 
             {isVideoUploading && (
-              <div className="mt-4 rounded-2xl p-4" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.15)' }}>
+              <div className="mt-4 rounded-2xl p-4" style={{ background: 'rgba(27,24,19,0.08)', border: '1px solid rgba(27,24,19,0.15)' }}>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                  <span className="text-xs font-medium" style={{ color: 'rgba(27,24,19,0.6)' }}>
                     Uploading {videoFileName}...
                   </span>
-                  <span className="text-xs font-bold" style={{ color: '#A78BFA' }}>{videoUploadProgress}%</span>
+                  <span className="text-xs font-bold" style={{ color: '#8A7BA8' }}>{videoUploadProgress}%</span>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(27,24,19,0.06)' }}>
                   <div className="h-full rounded-full transition-all duration-300"
-                    style={{ width: `${videoUploadProgress}%`, background: 'linear-gradient(90deg, #7C3AED, #4F8EF7)' }} />
+                    style={{ width: `${videoUploadProgress}%`, background: '#16130E' }} />
                 </div>
               </div>
             )}
@@ -778,16 +971,16 @@ export default function CoachEditProfilePage() {
                   style={{ maxHeight: 200, background: '#000' }} />
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: 'rgba(34,197,94,0.15)' }}>
-                      <CheckCircle2 size={12} style={{ color: '#22c55e' }} />
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: 'rgba(94,140,90,0.15)' }}>
+                      <CheckCircle2 size={12} style={{ color: '#5E8C5A' }} />
                     </div>
-                    <span className="text-xs font-medium" style={{ color: '#22c55e' }}>
+                    <span className="text-xs font-medium" style={{ color: '#5E8C5A' }}>
                       {videoFileName || 'Video uploaded'}
                     </span>
                   </div>
                   <button type="button" onClick={() => { videoUploadRef.current?.click(); }}
                     className="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
-                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    style={{ background: 'rgba(27,24,19,0.06)', color: 'rgba(27,24,19,0.5)', border: '1px solid rgba(27,24,19,0.08)' }}>
                     Replace
                   </button>
                 </div>
@@ -797,7 +990,7 @@ export default function CoachEditProfilePage() {
 
           {/* Save */}
           <div className="flex justify-between items-center pb-12">
-            <Link to="/dashboard" className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.4)' }}>Cancel</Link>
+            <Link to="/dashboard" className="text-sm font-bold" style={{ color: 'rgba(27,24,19,0.4)' }}>Cancel</Link>
             <button onClick={handleSubmit} disabled={isSubmitting || isUploading || isVideoUploading}
               className="btn-primary py-4 px-10 flex items-center gap-2 disabled:opacity-50">
               {isSubmitting ? (

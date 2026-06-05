@@ -2,10 +2,10 @@ import React from 'react';
 import PageTransition from '../components/PageTransition';
 import { FileText, CheckCircle, User, CreditCard, AlertTriangle, Scale, Mail } from 'lucide-react';
 
-const sectionHeadingStyle = { color: 'white' };
-const bodyStyle = { color: 'rgba(255,255,255,0.7)' };
-const iconStyle = { color: 'rgba(255,255,255,0.4)' };
-const cardStyle = { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' };
+const sectionHeadingStyle = { color: 'var(--ink)' };
+const bodyStyle = { color: 'rgba(27,24,19,0.7)' };
+const iconStyle = { color: 'rgba(27,24,19,0.4)' };
+const cardStyle = { background: 'rgba(27,24,19,0.03)', border: '1px solid rgba(27,24,19,0.08)' };
 
 export default function TermsPage() {
   const lastUpdated = "March 18, 2026";
@@ -15,14 +15,14 @@ export default function TermsPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
         <div className="text-center mb-16">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
-            style={{ background: 'rgba(255,255,255,0.05)', color: 'white' }}>
+            style={{ background: 'rgba(27,24,19,0.05)', color: 'var(--ink)' }}>
             <FileText size={32} />
           </div>
-          <h1 className="text-5xl font-bold tracking-tight mb-4" style={{ color: 'white' }}>Terms of Service</h1>
-          <p className="text-lg" style={{ color: 'rgba(255,255,255,0.5)' }}>Last updated: {lastUpdated}</p>
+          <h1 className="text-5xl font-bold tracking-tight mb-4" style={{ color: 'var(--ink)' }}>Terms of Service</h1>
+          <p className="text-lg" style={{ color: 'rgba(27,24,19,0.5)' }}>Last updated: {lastUpdated}</p>
         </div>
 
-        <div className="p-8 md:p-12 rounded-3xl shadow-2xl space-y-12" style={cardStyle}>
+        <div className="p-8 md:p-12 rounded-3xl space-y-12" style={cardStyle}>
 
           <section>
             <h2 className="text-2xl font-bold mb-6 flex items-center gap-3" style={sectionHeadingStyle}>
@@ -60,8 +60,8 @@ export default function TermsPage() {
               3. Coach and Player Responsibilities
             </h2>
             <div className="space-y-4 leading-relaxed" style={bodyStyle}>
-              <p><strong style={{ color: 'rgba(255,255,255,0.9)' }}>Players:</strong> You agree to arrive on time for sessions, provide accurate information about your skill level, and follow the coach's instructions during the session.</p>
-              <p><strong style={{ color: 'rgba(255,255,255,0.9)' }}>Coaches:</strong> You agree to provide professional instruction, maintain a safe environment, and accurately represent your qualifications and experience.</p>
+              <p><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Players:</strong> You agree to arrive on time for sessions, provide accurate information about your skill level, and follow the coach's instructions during the session.</p>
+              <p><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Coaches:</strong> You agree to provide professional instruction, maintain a safe environment, and accurately represent your qualifications and experience.</p>
               <p>
                 CoachGo is a marketplace that facilitates connections between players and coaches. We do not employ the coaches and are not responsible for their individual conduct or the quality of instruction provided.
               </p>
@@ -122,7 +122,7 @@ export default function TermsPage() {
               <p>
                 If you have any questions about these Terms of Service, please contact us at:
               </p>
-              <p className="font-bold" style={{ color: 'white' }}>
+              <p className="font-bold" style={{ color: 'var(--ink)' }}>
                 support@coachgonline.com
               </p>
             </div>

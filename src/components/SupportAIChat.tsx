@@ -82,31 +82,31 @@ export default function SupportAIChat() {
             style={{
               width: '360px',
               height: '500px',
-              background: '#0F1628',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: '#FBFAF6',
+              border: '1px solid rgba(27,24,19,0.08)',
               boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
             }}
           >
             {/* Header */}
             <div className="p-4 flex justify-between items-center shrink-0"
-              style={{ background: 'linear-gradient(135deg, #4F8EF7, #2563EB)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+              style={{ background: 'var(--paper-warm)', borderBottom: '1px solid rgba(27,24,19,0.1)' }}>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-                  style={{ background: 'rgba(255,255,255,0.2)' }}>
-                  <Bot size={18} className="text-white" />
+                  style={{ background: 'rgba(27,24,19,0.2)' }}>
+                  <Bot size={18} className="text-ink" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-white">CoachGo AI Support</h3>
+                  <h3 className="font-bold text-sm text-ink">CoachGo AI Support</h3>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#22c55e' }} />
-                    <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: '#22c55e' }}>Online</p>
+                    <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#5E8C5A' }} />
+                    <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: '#5E8C5A' }}>Online</p>
                   </div>
                 </div>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-2 rounded-xl transition-all hover:bg-white/10"
-                style={{ color: 'rgba(255,255,255,0.7)' }}
+                className="p-2 rounded-xl transition-all hover:bg-[rgba(27,24,19,0.05)]"
+                style={{ color: 'rgba(27,24,19,0.7)' }}
               >
                 <X size={18} />
               </button>
@@ -116,7 +116,7 @@ export default function SupportAIChat() {
             <div
               ref={scrollRef}
               className="flex-grow overflow-y-auto p-4 space-y-4"
-              style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}
+              style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(27,24,19,0.1) transparent' }}
             >
               {messages.map((m, i) => (
                 <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -124,17 +124,18 @@ export default function SupportAIChat() {
                     {/* Avatar */}
                     <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-1"
                       style={{
-                        background: m.role === 'user' ? '#4F8EF7' : 'rgba(79,142,247,0.2)',
-                        color: 'white',
+                        background: m.role === 'user' ? '#1B1813' : 'var(--paper-warm)',
+                        color: m.role === 'user' ? 'white' : 'var(--ink)',
+                        border: m.role === 'user' ? 'none' : '1px solid var(--line)',
                       }}>
                       {m.role === 'user' ? <User size={12} /> : <Bot size={12} />}
                     </div>
                     {/* Bubble */}
                     <div className={`p-3 rounded-2xl text-xs leading-relaxed ${m.role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}`}
                       style={{
-                        background: m.role === 'user' ? '#4F8EF7' : 'rgba(255,255,255,0.07)',
-                        color: m.role === 'user' ? 'white' : 'rgba(255,255,255,0.85)',
-                        border: m.role !== 'user' ? '1px solid rgba(255,255,255,0.08)' : 'none',
+                        background: m.role === 'user' ? '#1B1813' : 'rgba(27,24,19,0.07)',
+                        color: m.role === 'user' ? 'white' : 'rgba(27,24,19,0.85)',
+                        border: m.role !== 'user' ? '1px solid rgba(27,24,19,0.08)' : 'none',
                       }}>
                       {m.text}
                     </div>
@@ -147,11 +148,11 @@ export default function SupportAIChat() {
                 <div className="flex justify-start">
                   <div className="flex gap-2">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
-                      style={{ background: 'rgba(79,142,247,0.2)', color: 'white' }}>
+                      style={{ background: 'var(--paper-warm)', color: 'var(--ink)', border: '1px solid var(--line)' }}>
                       <Bot size={12} />
                     </div>
                     <div className="p-3 rounded-2xl rounded-tl-none flex items-center gap-2 text-xs"
-                      style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      style={{ background: 'rgba(27,24,19,0.07)', color: 'rgba(27,24,19,0.6)', border: '1px solid rgba(27,24,19,0.08)' }}>
                       <Loader2 size={12} className="animate-spin" />
                       Thinking...
                     </div>
@@ -161,30 +162,30 @@ export default function SupportAIChat() {
             </div>
 
             {/* Input */}
-            <div className="p-4 shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="p-4 shrink-0" style={{ borderTop: '1px solid rgba(27,24,19,0.06)' }}>
               <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="relative">
                 <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask anything..."
-                  className="w-full rounded-xl py-3 pl-4 pr-12 text-xs focus:outline-none transition-all text-white placeholder-white/30"
+                  className="w-full rounded-xl py-3 pl-4 pr-12 text-xs focus:outline-none transition-all text-ink placeholder-[rgba(27,24,19,0.4)]"
                   style={{
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: '#FFFFFF',
+                    border: '1px solid rgba(27,24,19,0.16)',
                   }}
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || isLoading}
                   className="absolute right-1.5 top-1.5 bottom-1.5 px-3 rounded-lg font-bold transition-all disabled:opacity-40"
-                  style={{ background: '#4F8EF7', color: 'white' }}
+                  style={{ background: '#1B1813', color: 'white' }}
                 >
                   <Send size={14} />
                 </button>
               </form>
               <p className="text-[8px] text-center mt-2 uppercase tracking-widest"
-                style={{ color: 'rgba(255,255,255,0.2)' }}>
+                style={{ color: 'rgba(27,24,19,0.2)' }}>
                 CoachGo Support · coachgonline@gmail.com
               </p>
             </div>
@@ -197,20 +198,20 @@ export default function SupportAIChat() {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300"
+        className="w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300"
         style={{
-          background: 'linear-gradient(135deg, #4F8EF7, #2563EB)',
-          boxShadow: '0 8px 30px rgba(79,142,247,0.4)',
+          background: 'var(--black)',
+          boxShadow: '0 10px 30px rgba(27,24,19,0.25)',
         }}
       >
         <AnimatePresence mode="wait">
           {isOpen ? (
             <motion.div key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}>
-              <X size={22} className="text-white" />
+              <X size={22} className="text-paper" />
             </motion.div>
           ) : (
             <motion.div key="open" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}>
-              <MessageSquare size={22} className="text-white" />
+              <MessageSquare size={22} className="text-paper" />
             </motion.div>
           )}
         </AnimatePresence>

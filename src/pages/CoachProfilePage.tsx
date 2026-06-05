@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Star, Calendar, Shield, CheckCircle2, MapPin, ExternalLink, Heart, Loader2, X, MessageSquare } from 'lucide-react';
+import { Star, Calendar, Shield, CheckCircle2, MapPin, ExternalLink, Heart, Loader2, X, MessageSquare, Zap } from 'lucide-react';
 import { motion, AnimatePresence, useScroll, useTransform, useReducedMotion } from 'framer-motion';
 import PageTransition from '../components/PageTransition';
 import AnimatedCounter from '../components/AnimatedCounter';
-import { SPRING, SPRING_BOUNCY } from '../tokens';
-import { GlowingEffect } from '@/components/ui/glowing-effect-card';
-import { ShimmerButton } from '@/components/ui/shimmer-button';
+import { SPRING, SPRING_BOUNCY, EASE_OUT } from '../tokens';
+import { enabledLocationModes, LOCATION_MODE_META } from '../utils/scheduling';
+import { addRecentCoach } from '../utils/discovery';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../firebase';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, getDoc, orderBy, setDoc } from 'firebase/firestore';
@@ -75,6 +75,9 @@ export default function CoachProfilePage() {
             venmo_handle: d.venmo_handle || base?.venmo_handle,
             video_url: d.video_url || base?.video_url,
             packages: d.packages || base?.packages,
+            instant_book: d.instant_book === true,
+            location_modes: d.location_modes,
+            academy_name: d.academy_name || base?.academy_name,
           } as CoachProfile);
           if (d.availability) setAvailability(d.availability);
         } else if (base) {
@@ -124,19 +127,47 @@ export default function CoachProfilePage() {
     return () => unsub();
   }, [coachUid]);
 
+  // Log to "recently viewed"
+  useEffect(() => {
+    if (coach) {
+      addRecentCoach({
+        id: coach.id,
+        name: coach.name || 'Coach',
+        specialty: coach.specialty,
+        avatar_url: coach.avatar_url,
+        price: coach.price_per_session,
+      });
+    }
+  }, [coach?.id]);
+
+  // Log a profile view (analytics) — once per browser session per coach,
+  // and never count the coach viewing their own profile.
+  useEffect(() => {
+    if (!coachUid) return;
+    if (user && user.uid === coachUid) return;
+    const key = `cg_viewed_${coachUid}`;
+    try { if (sessionStorage.getItem(key)) return; } catch { /* ignore */ }
+    addDoc(collection(db, 'coach_views'), {
+      coach_id: coachUid,
+      viewer_id: user?.uid || 'anon',
+      created_at: serverTimestamp(),
+    }).then(() => { try { sessionStorage.setItem(key, '1'); } catch { /* ignore */ } })
+      .catch(() => { /* non-critical */ });
+  }, [coachUid, user]);
+
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#0A0F1E' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--paper)' }}>
       <div className="text-center">
-        <Loader2 className="animate-spin mx-auto mb-4" size={40} style={{ color: '#4F8EF7' }} />
-        <p style={{ color: 'rgba(255,255,255,0.4)' }}>Loading coach profile...</p>
+        <Loader2 className="animate-spin mx-auto mb-4" size={36} style={{ color: 'var(--ink-soft)' }} />
+        <p style={{ color: 'var(--ink-soft)' }}>Loading coach profile…</p>
       </div>
     </div>
   );
 
   if (!coach) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#0A0F1E' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--paper)' }}>
       <div className="text-center">
-        <p className="text-white font-bold mb-4">Coach not found.</p>
+        <p className="font-display text-2xl mb-4" style={{ color: 'var(--ink)' }}>Coach not found.</p>
         <Link to="/coaches" className="btn-secondary">Browse Coaches</Link>
       </div>
     </div>
@@ -199,208 +230,164 @@ export default function CoachProfilePage() {
 function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, reviews, avgRating, displayRating, displayReviewCount, sessionTypes, mapsUrl, user, navigate }: any) {
   const prefersReduced = useReducedMotion();
   const heroRef = useRef<HTMLElement>(null);
-  const { scrollY } = useScroll();
-  const heroY = useTransform(scrollY, [0, 400], [0, prefersReduced ? 0 : -80]);
-  const heroOpacity = useTransform(scrollY, [0, 300], [1, 0.6]);
-  const heroScale = useTransform(scrollY, [0, 400], [1, prefersReduced ? 1 : 1.08]);
 
   const sectionVariants = {
-    hidden: { opacity: 0, y: prefersReduced ? 0 : 40 },
+    hidden: { opacity: 0, y: prefersReduced ? 0 : 24 },
     visible: { opacity: 1, y: 0, transition: { ...SPRING } },
+  };
+
+  const messageCoach = async () => {
+    if (!user || !coach) return;
+    try {
+      const { getDocs, query, collection, where } = await import('firebase/firestore');
+      const q = query(
+        collection(db, 'conversations'),
+        where('coach_id', '==', coach.user_id),
+        where('player_id', '==', user.uid)
+      );
+      const snap = await getDocs(q);
+      const userSnap = await getDoc(doc(db, 'users', user.uid));
+      const playerName = userSnap.exists() ? userSnap.data().name || user.displayName || 'Player' : user.displayName || 'Player';
+      const convoId = !snap.empty ? snap.docs[0].id : (await addDoc(collection(db, 'conversations'), {
+        coach_id: coach.user_id,
+        player_id: user.uid,
+        participants: [coach.user_id, user.uid],
+        last_message: '',
+        last_message_at: serverTimestamp(),
+        unread_count_coach: 0,
+        unread_count_player: 0,
+        coach_name: coach.name,
+        player_name: playerName,
+      })).id;
+      navigate(`/messages/${convoId}`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'conversations');
+    }
   };
 
   return (
     <PageTransition>
-      <div className="min-h-screen pb-24 pt-20" style={{ background: '#080B14' }}>
+      <div className="min-h-screen pb-24 pt-20" style={{ background: 'var(--paper)' }}>
 
-        {/* Parallax Hero */}
-        <section ref={heroRef} className="relative overflow-hidden py-20" style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          {/* Ambient glow */}
-          <motion.div
-            className="absolute inset-0 pointer-events-none"
-            style={{ background: 'radial-gradient(circle at 60% 40%, rgba(79,142,247,0.12) 0%, transparent 65%)' }}
-          />
-          <motion.div
-            style={{ y: heroY, opacity: heroOpacity, scale: heroScale }}
-            className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10"
-          >
-            <div className="flex flex-col md:flex-row gap-12 items-center">
-              {/* Avatar — 220px, glowing pulsing border */}
-              <div className="relative shrink-0">
-                {/* Pulsing glow ring */}
-                <motion.div
-                  className="absolute inset-[-4px] rounded-3xl pointer-events-none"
-                  style={{ background: 'conic-gradient(from 0deg, #4F8EF7, #7C3AED, #06B6D4, #4F8EF7)' }}
-                  animate={prefersReduced ? {} : { rotate: 360 }}
-                  transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
-                />
-                <motion.div
-                  className="relative w-[220px] h-[220px] rounded-3xl overflow-hidden"
-                  style={{ background: 'rgba(255,255,255,0.04)', zIndex: 1 }}
-                  initial={{ opacity: 0, scale: 0.85, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ ...SPRING }}
-                  whileHover={{ scale: 1.04, boxShadow: '0 30px 80px rgba(79,142,247,0.35)' }}
-                >
-                  {coach.avatar_url ? (
-                    <img src={coach.avatar_url} alt={coach.name} className="w-full h-full object-cover"
-                      style={{ objectPosition: coach.avatar_position || 'center' }} referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-6xl font-bold" style={{ color: 'rgba(255,255,255,0.1)' }}>
-                      {coach.name?.charAt(0)}
-                    </div>
-                  )}
-                </motion.div>
-              </div>
+        {/* Hero */}
+        <section ref={heroRef} className="relative overflow-hidden py-16" style={{ background: 'var(--paper-warm)', borderBottom: '1px solid var(--line)' }}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div className="flex flex-col md:flex-row gap-10 lg:gap-12 items-center">
+              {/* Avatar */}
+              <motion.div
+                className="relative shrink-0 w-[200px] h-[200px] rounded-[28px] overflow-hidden"
+                style={{ background: 'var(--card-cream)', border: '1px solid var(--line)', boxShadow: '0 20px 60px rgba(27,24,19,0.10)' }}
+                initial={{ opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ ...SPRING }}
+              >
+                {coach.avatar_url ? (
+                  <img src={coach.avatar_url} alt={coach.name} className="w-full h-full object-cover"
+                    style={{ objectPosition: coach.avatar_position || 'center' }} referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center font-display text-6xl" style={{ color: 'var(--ink-faint)' }}>
+                    {coach.name?.charAt(0)}
+                  </div>
+                )}
+              </motion.div>
 
               <motion.div
                 className="flex-1 text-center md:text-left"
-                initial={{ opacity: 0, x: -30 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ ...SPRING, delay: 0.1 }}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...SPRING, delay: 0.08 }}
               >
-                <div className="flex flex-wrap justify-center md:justify-start gap-3 mb-4">
-                  <span className="tag-badge capitalize">{coach.specialty}</span>
-                  {coach.secondary_specialty && <span className="tag-badge capitalize">{coach.secondary_specialty}</span>}
-                  <div className="flex items-center gap-1 px-3 py-1 rounded-full" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                    <Star size={14} fill="#F59E0B" style={{ color: '#F59E0B' }} />
-                    <span className="text-xs font-bold" style={{ color: '#F59E0B' }}>{displayRating} ({displayReviewCount} reviews)</span>
+                <div className="flex flex-wrap justify-center md:justify-start items-center gap-2.5 mb-4">
+                  <span className="eyebrow capitalize">{coach.specialty}</span>
+                  {coach.secondary_specialty && <span className="eyebrow capitalize">{coach.secondary_specialty}</span>}
+                  <div className="flex items-center gap-1 px-3 py-1 rounded-full" style={{ background: 'var(--card-cream)', border: '1px solid var(--line)' }}>
+                    <Star size={13} fill="var(--c-reschedule)" style={{ color: 'var(--c-reschedule)' }} />
+                    <span className="text-xs" style={{ color: 'var(--ink)' }}>{displayRating} ({displayReviewCount} reviews)</span>
                   </div>
+                  {coach.instant_book && (
+                    <span className="flex items-center gap-1 px-3 py-1 rounded-full text-xs" style={{ background: 'var(--black)', color: 'var(--paper)' }}>
+                      <Zap size={12} /> Instant book
+                    </span>
+                  )}
                 </div>
 
-                <div className="flex items-center justify-center md:justify-start gap-4 mb-4">
-                  <motion.h1
-                    className="font-display text-5xl text-white"
-                    variants={{ visible: { transition: { staggerChildren: prefersReduced ? 0 : 0.04 } } }}
-                    initial="hidden"
-                    animate="visible"
-                    aria-label={coach.name}
-                  >
-                    {(coach.name || '').split('').map((ch: string, i: number) => (
-                      <motion.span
-                        key={i}
-                        className="inline-block"
-                        style={ch === ' ' ? { whiteSpace: 'pre' } : {}}
-                        variants={{
-                          hidden:  { opacity: 0, y: 40, rotate: -5 },
-                          visible: { opacity: 1, y: 0, rotate: 0, transition: { ...SPRING_BOUNCY } },
-                        }}
-                      >
-                        {ch}
-                      </motion.span>
-                    ))}
-                  </motion.h1>
-                  <motion.button onClick={toggleFavorite}
-                    className="p-3 rounded-full border transition-all"
-                    whileHover={{ scale: 1.15 }}
-                    whileTap={{ scale: 0.9 }}
+                <div className="flex items-center justify-center md:justify-start gap-4 mb-3">
+                  <h1 className="display-lg" aria-label={coach.name}>{coach.name}</h1>
+                  <button onClick={toggleFavorite}
+                    className="p-3 rounded-full transition-colors shrink-0"
+                    aria-label="Toggle favorite"
                     style={{
-                      background: isFavorite ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)',
-                      borderColor: isFavorite ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)',
-                      color: isFavorite ? '#ef4444' : 'rgba(255,255,255,0.5)',
+                      background: isFavorite ? 'rgba(188,90,72,0.12)' : 'transparent',
+                      border: `1px solid ${isFavorite ? 'rgba(188,90,72,0.3)' : 'var(--line-strong)'}`,
+                      color: isFavorite ? 'var(--c-declined)' : 'var(--ink-soft)',
                     }}>
                     <Heart size={20} fill={isFavorite ? 'currentColor' : 'none'} />
-                  </motion.button>
+                  </button>
                 </div>
 
-                <p className="text-lg mb-8" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                  Professional Baseball Coach specializing in {coach.specialty}.
+                <p className="text-lg mb-7" style={{ color: 'var(--ink-soft)' }}>
+                  Professional baseball coach specializing in {coach.specialty}.
                 </p>
 
-                <div className="flex flex-wrap justify-center md:justify-start gap-6">
-                  <div className="flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                    <span className="text-sm">
-                      <span className="font-bold text-white">$<AnimatedCounter to={coach.price_per_session} /></span> / session
-                    </span>
-                  </div>
+                <div className="flex flex-wrap justify-center md:justify-start gap-x-6 gap-y-3">
+                  <span className="text-sm" style={{ color: 'var(--ink-soft)' }}>
+                    <span className="font-display text-xl" style={{ color: 'var(--ink)' }}>$<AnimatedCounter to={coach.price_per_session} /></span> / session
+                  </span>
                   {coach.years_experience > 0 && (
-                    <div className="flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                      <span className="text-sm">
-                        <span className="font-bold text-white"><AnimatedCounter to={coach.years_experience} />+</span> years experience
-                      </span>
-                    </div>
+                    <span className="text-sm" style={{ color: 'var(--ink-soft)' }}>
+                      <span className="font-display text-xl" style={{ color: 'var(--ink)' }}><AnimatedCounter to={coach.years_experience} />+</span> years experience
+                    </span>
                   )}
-                  <div className="flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                    <Shield size={16} style={{ color: '#4F8EF7' }} />
-                    <span className="text-sm">Vetted Specialist</span>
-                  </div>
+                  <span className="flex items-center gap-2 text-sm" style={{ color: 'var(--ink-soft)' }}>
+                    <Shield size={16} style={{ color: 'var(--ink-faint)' }} /> Vetted specialist
+                  </span>
                   {coach.city && coach.state && (
-                    <div className="flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                      <MapPin size={16} style={{ color: '#4F8EF7' }} />
-                      <span className="text-sm">{coach.city}, {coach.state}</span>
-                    </div>
+                    <span className="flex items-center gap-2 text-sm" style={{ color: 'var(--ink-soft)' }}>
+                      <MapPin size={16} style={{ color: 'var(--ink-faint)' }} /> {coach.city}, {coach.state}
+                    </span>
+                  )}
+                  {coach.academy_name && (
+                    <Link to={`/coaches?academy=${encodeURIComponent(coach.academy_name)}`}
+                      className="text-sm transition-colors hover:text-[var(--ink)] underline-offset-2 hover:underline"
+                      style={{ color: 'var(--ink-soft)' }}>
+                      @ {coach.academy_name}
+                    </Link>
                   )}
                 </div>
               </motion.div>
 
               <motion.div
-                className="shrink-0 flex flex-col gap-3"
-                initial={{ opacity: 0, x: 30 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ ...SPRING, delay: 0.2 }}
+                className="shrink-0 flex flex-col gap-3 w-full md:w-auto"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...SPRING, delay: 0.16 }}
               >
-                <Link to={`/book/${coach.id}`} className="btn-primary px-12 py-4 text-center">Book a Session</Link>
+                <Link to={`/book/${coach.id}`} className="btn-primary px-10 py-4 text-center justify-center"><Calendar size={17} /> Book a session</Link>
                 {user && coach.user_id && coach.user_id.length > 5 && (
-                  <button
-                    onClick={async () => {
-                      if (!user || !coach) return;
-                      // Find or create conversation
-                      try {
-                        const { getDocs, query, collection, where } = await import('firebase/firestore');
-                        const q = query(
-                          collection(db, 'conversations'),
-                          where('coach_id', '==', coach.user_id),
-                          where('player_id', '==', user.uid)
-                        );
-                        const snap = await getDocs(q);
-                        const userSnap = await getDoc(doc(db, 'users', user.uid));
-                        const playerName = userSnap.exists() ? userSnap.data().name || user.displayName || 'Player' : user.displayName || 'Player';
-                        const convoId = !snap.empty ? snap.docs[0].id : (await addDoc(collection(db, 'conversations'), {
-                          coach_id: coach.user_id,
-                          player_id: user.uid,
-                          participants: [coach.user_id, user.uid],
-                          last_message: '',
-                          last_message_at: serverTimestamp(),
-                          unread_count_coach: 0,
-                          unread_count_player: 0,
-                          coach_name: coach.name,
-                          player_name: playerName,
-                        })).id;
-                        navigate(`/messages/${convoId}`);
-                      } catch (err) {
-                        handleFirestoreError(err, OperationType.WRITE, 'conversations');
-                      }
-                    }}
-                    className="btn-secondary px-12 py-3 flex items-center justify-center gap-2"
-                  >
-                    <MessageSquare size={16} /> Message Coach
+                  <button onClick={messageCoach} className="btn-secondary px-10 py-3 flex items-center justify-center gap-2">
+                    <MessageSquare size={16} /> Message coach
                   </button>
                 )}
               </motion.div>
             </div>
-          </motion.div>
+          </div>
         </section>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 lg:gap-16">
 
             {/* Left */}
-            <div className="lg:col-span-2 space-y-16">
+            <div className="lg:col-span-2 space-y-14">
 
-              <motion.section
-                variants={sectionVariants}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, margin: '-80px' }}
-              >
-                <h2 className="font-display text-3xl text-white mb-6">About the Coach</h2>
-                <p className="leading-relaxed text-lg whitespace-pre-line mb-8" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              <motion.section variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }}>
+                <h2 className="display-md mb-6">About the coach</h2>
+                <p className="leading-relaxed text-lg whitespace-pre-line mb-8" style={{ color: 'var(--ink-soft)' }}>
                   {coach.bio}
                 </p>
 
                 {coach.affiliations && coach.affiliations.length > 0 && (
-                  <div className="mt-12 pt-12" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] mb-8" style={{ color: 'rgba(255,255,255,0.2)' }}>Professional Affiliations</h3>
+                  <div className="mt-12 pt-12" style={{ borderTop: '1px solid var(--line)' }}>
+                    <h3 className="text-xs uppercase tracking-[0.14em] mb-8" style={{ color: 'var(--ink-faint)' }}>Professional affiliations</h3>
                     <div className="overflow-x-hidden">
                       <motion.div
                         className="flex gap-10 items-center cursor-grab active:cursor-grabbing pb-2"
@@ -417,13 +404,13 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ delay: idx * 0.08, ...SPRING }}
-                            whileHover={{ scale: 1.1, y: -4 }}
+                            whileHover={{ scale: 1.06, y: -3 }}
                             className="group relative shrink-0"
                           >
-                            <img src={aff.logoUrl} alt={aff.name} className="h-20 w-auto transition-all duration-500 object-contain"
+                            <img src={aff.logoUrl} alt={aff.name} className="h-16 w-auto object-contain"
                               referrerPolicy="no-referrer" crossOrigin="anonymous" />
-                            <div className="absolute -bottom-8 left-0 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold uppercase tracking-widest whitespace-nowrap px-2 py-1 rounded z-[100] pointer-events-none"
-                              style={{ background: '#4F8EF7', color: 'white' }}>
+                            <div className="absolute -bottom-7 left-0 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] tracking-wide whitespace-nowrap px-2 py-1 rounded z-[100] pointer-events-none"
+                              style={{ background: 'var(--black)', color: 'var(--paper)' }}>
                               {aff.name}
                             </div>
                           </motion.div>
@@ -441,9 +428,9 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
                   coach.video_url.match(/\.(mp4|webm|ogg|mov)(\?|$)/i)
                 );
                 if (youtubeId) return (
-                  <section style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '4rem' }}>
-                    <h2 className="font-display text-3xl text-white mb-6">Coach Introduction</h2>
-                    <div className="rounded-2xl overflow-hidden" style={{ aspectRatio: '16/9' }}>
+                  <section style={{ borderTop: '1px solid var(--line)', paddingTop: '3.5rem' }}>
+                    <h2 className="display-md mb-6">Coach introduction</h2>
+                    <div className="rounded-2xl overflow-hidden" style={{ aspectRatio: '16/9', border: '1px solid var(--line)' }}>
                       <iframe
                         src={`https://www.youtube.com/embed/${youtubeId}`}
                         title="Coach Introduction"
@@ -456,16 +443,10 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
                   </section>
                 );
                 if (isDirectVideo) return (
-                  <section style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '4rem' }}>
-                    <h2 className="font-display text-3xl text-white mb-6">Coach Introduction</h2>
-                    <div className="rounded-2xl overflow-hidden" style={{ aspectRatio: '16/9', background: 'rgba(0,0,0,0.4)' }}>
-                      <video
-                        src={coach.video_url}
-                        controls
-                        className="w-full h-full"
-                        style={{ objectFit: 'contain' }}
-                        playsInline
-                      />
+                  <section style={{ borderTop: '1px solid var(--line)', paddingTop: '3.5rem' }}>
+                    <h2 className="display-md mb-6">Coach introduction</h2>
+                    <div className="rounded-2xl overflow-hidden" style={{ aspectRatio: '16/9', background: 'var(--paper-warm)', border: '1px solid var(--line)' }}>
+                      <video src={coach.video_url} controls className="w-full h-full" style={{ objectFit: 'contain' }} playsInline />
                     </div>
                   </section>
                 );
@@ -475,27 +456,22 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
               {coach.street_address && (
                 <motion.section
                   variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }}
-                  style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '4rem' }}
+                  style={{ borderTop: '1px solid var(--line)', paddingTop: '3.5rem' }}
                 >
-                  <h2 className="font-display text-3xl text-white mb-6">Location</h2>
-                  <div className="p-8 rounded-3xl flex flex-col md:flex-row justify-between items-center gap-8"
-                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <h2 className="display-md mb-6">Location</h2>
+                  <div className="p-7 rounded-3xl flex flex-col md:flex-row justify-between items-center gap-6 cg-card">
                     <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'rgba(79,142,247,0.15)', color: '#4F8EF7' }}>
-                        <MapPin size={24} />
+                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'var(--paper-warm)', color: 'var(--ink)' }}>
+                        <MapPin size={22} />
                       </div>
                       <div>
-                        <h4 className="font-bold text-lg text-white mb-1">{coach.street_address}</h4>
-                        <p style={{ color: 'rgba(255,255,255,0.4)' }}>{coach.city}, {coach.state} {coach.zip_code}</p>
+                        <h4 className="text-lg mb-1" style={{ color: 'var(--ink)' }}>{coach.street_address}</h4>
+                        <p style={{ color: 'var(--ink-soft)' }}>{coach.city}, {coach.state} {coach.zip_code}</p>
                       </div>
                     </div>
-                    <motion.a
-                      href={mapsUrl} target="_blank" rel="noopener noreferrer"
-                      className="btn-secondary flex items-center gap-2 py-3 px-6"
-                      whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
-                    >
-                      <ExternalLink size={18} /> Get Directions
-                    </motion.a>
+                    <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary flex items-center gap-2 py-3 px-6">
+                      <ExternalLink size={18} /> Get directions
+                    </a>
                   </div>
                 </motion.section>
               )}
@@ -503,28 +479,22 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
               {coach.skills && coach.skills.length > 0 && (
                 <motion.section
                   variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }}
-                  style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '4rem' }}
+                  style={{ borderTop: '1px solid var(--line)', paddingTop: '3.5rem' }}
                 >
-                  <h2 className="font-display text-3xl text-white mb-6">Specialized Skills</h2>
+                  <h2 className="display-md mb-6">Specialized skills</h2>
                   <div className="flex flex-wrap gap-3">
                     {coach.skills.map((skill: string, i: number) => (
                       <motion.div
                         key={skill}
-                        initial={{ opacity: 0, scale: 0.85 }}
+                        initial={{ opacity: 0, scale: 0.9 }}
                         whileInView={{ opacity: 1, scale: 1 }}
                         viewport={{ once: true }}
                         transition={{ delay: i * 0.05, ...SPRING }}
-                        whileHover={{ scale: 1.06, y: -2 }}
-                        className="relative"
+                        className="flex items-center gap-2 px-4 py-2 rounded-full text-sm"
+                        style={{ background: 'var(--card-cream)', border: '1px solid var(--line-strong)', color: 'var(--ink)' }}
                       >
-                        <GlowingEffect disabled={false} spread={20} borderWidth={1} proximity={40} />
-                        <div
-                          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-default relative"
-                          style={{ background: 'rgba(79,142,247,0.06)', border: '1px solid rgba(79,142,247,0.15)', color: 'rgba(255,255,255,0.7)' }}
-                        >
-                          <CheckCircle2 size={14} style={{ color: 'rgba(79,142,247,0.7)' }} />
-                          {skill}
-                        </div>
+                        <CheckCircle2 size={14} style={{ color: 'var(--c-confirmed)' }} />
+                        {skill}
                       </motion.div>
                     ))}
                   </div>
@@ -533,98 +503,78 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
 
               <motion.section
                 variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }}
-                style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '4rem' }}
+                style={{ borderTop: '1px solid var(--line)', paddingTop: '3.5rem' }}
               >
-                <h2 className="font-display text-3xl text-white mb-6">Session Types</h2>
+                <h2 className="display-md mb-6">Session types</h2>
                 <div className="flex flex-wrap gap-4">
-                  {sessionTypes.map((type, i) => (
-                    <motion.div
-                      key={type.label}
-                      initial={{ opacity: 0, y: 20 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: i * 0.1, ...SPRING }}
-                      whileHover={{ y: -4, boxShadow: '0 16px 40px rgba(79,142,247,0.15)', willChange: 'transform' }}
-                      className="p-6 rounded-2xl flex-1 min-w-[280px] max-w-[400px]"
-                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
-                    >
-                      <h4 className="font-bold text-white mb-2">{type.label}</h4>
+                  {sessionTypes.map((type: { label: string; price?: number }) => (
+                    <div key={type.label} className="cg-card p-6 flex-1 min-w-[260px] max-w-[400px]">
+                      <h4 className="font-display text-2xl mb-1" style={{ color: 'var(--ink)' }}>{type.label}</h4>
                       {type.price != null && type.price > 0 ? (
-                        <p className="text-sm font-bold" style={{ color: '#4F8EF7' }}>${type.price} / session</p>
+                        <p className="text-sm" style={{ color: 'var(--ink-soft)' }}>${type.price} / session</p>
                       ) : (
-                        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Intensive focused training designed for maximum growth.</p>
+                        <p className="text-sm" style={{ color: 'var(--ink-soft)' }}>Intensive focused training designed for maximum growth.</p>
                       )}
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </motion.section>
 
-              {/* Reviews Section */}
+              {/* Reviews */}
               <motion.section
                 variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }}
-                style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '4rem' }}
+                style={{ borderTop: '1px solid var(--line)', paddingTop: '3.5rem' }}
               >
                 <div className="flex items-center justify-between mb-8">
-                  <h2 className="font-display text-3xl text-white">Reviews</h2>
+                  <h2 className="display-md">Reviews</h2>
                   {reviews.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                      <Star size={16} fill="#F59E0B" style={{ color: '#F59E0B' }} />
-                      <span className="font-bold text-white">{avgRating}</span>
-                      <span className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>({reviews.length} reviews)</span>
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{ background: 'var(--card-cream)', border: '1px solid var(--line)' }}>
+                      <Star size={15} fill="var(--c-reschedule)" style={{ color: 'var(--c-reschedule)' }} />
+                      <span style={{ color: 'var(--ink)' }}>{avgRating}</span>
+                      <span className="text-sm" style={{ color: 'var(--ink-soft)' }}>({reviews.length} reviews)</span>
                     </div>
                   )}
                 </div>
 
                 {reviews.length === 0 ? (
-                  <div className="p-12 rounded-3xl text-center" style={{ border: '1px dashed rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)' }}>
-                    <Star size={32} className="mx-auto mb-4" style={{ color: 'rgba(255,255,255,0.1)' }} />
-                    <p className="font-bold text-white mb-2">No reviews yet</p>
-                    <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.4)' }}>Be the first to book a session and leave a review.</p>
-                    <Link to={`/book/${coach.id}`} className="btn-primary py-2 px-6 text-sm">Book a Session</Link>
+                  <div className="p-12 rounded-3xl text-center" style={{ border: '1px dashed var(--line-strong)', background: 'var(--card-cream)' }}>
+                    <Star size={30} className="mx-auto mb-4" style={{ color: 'var(--ink-faint)' }} />
+                    <p className="font-display text-2xl mb-2" style={{ color: 'var(--ink)' }}>No reviews yet</p>
+                    <p className="text-sm mb-6" style={{ color: 'var(--ink-soft)' }}>Be the first to book a session and leave a review.</p>
+                    <Link to={`/book/${coach.id}`} className="btn-primary py-2 px-6 text-sm">Book a session</Link>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     {reviews.map((review: any, i: number) => (
                       <motion.div
                         key={review.id}
-                        initial={{ opacity: 0, y: 20 }}
+                        initial={{ opacity: 0, y: 16 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        transition={{ delay: i * 0.06, ...SPRING }}
-                        whileHover={{ x: 4 }}
-                        className="p-6 rounded-2xl"
-                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+                        transition={{ delay: i * 0.05, ...SPRING }}
+                        className="cg-card p-6"
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
-                              style={{ background: 'rgba(79,142,247,0.15)', color: '#4F8EF7' }}>
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm shrink-0"
+                              style={{ background: 'var(--paper-warm)', color: 'var(--ink)' }}>
                               {review.player_name?.charAt(0) || '?'}
                             </div>
                             <div>
-                              <p className="font-bold text-white text-sm">{review.player_name || 'Player'}</p>
-                              <p className="text-[10px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                              <p className="text-sm" style={{ color: 'var(--ink)' }}>{review.player_name || 'Player'}</p>
+                              <p className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--ink-faint)' }}>
                                 {review.created_at?.toDate?.()?.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) || ''}
                               </p>
                             </div>
                           </div>
                           <div className="flex gap-0.5">
                             {[1,2,3,4,5].map(star => (
-                              <motion.span
-                                key={star}
-                                initial={{ scale: 0, opacity: 0 }}
-                                whileInView={{ scale: 1, opacity: 1 }}
-                                viewport={{ once: true }}
-                                transition={{ ...SPRING_BOUNCY, delay: i * 0.06 + star * 0.1 }}
-                                style={{ display: 'inline-flex' }}
-                              >
-                                <Star size={14} fill={star <= review.rating ? '#F59E0B' : 'transparent'}
-                                  style={{ color: star <= review.rating ? '#F59E0B' : 'rgba(255,255,255,0.15)' }} />
-                              </motion.span>
+                              <Star key={star} size={14} fill={star <= review.rating ? 'var(--c-reschedule)' : 'transparent'}
+                                style={{ color: star <= review.rating ? 'var(--c-reschedule)' : 'var(--line-strong)' }} />
                             ))}
                           </div>
                         </div>
-                        <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>{review.comment}</p>
+                        <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-soft)' }}>{review.comment}</p>
                       </motion.div>
                     ))}
                   </div>
@@ -632,111 +582,82 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
               </motion.section>
             </div>
 
-            {/* Right — Animated Booking Sidebar */}
+            {/* Right — Booking Sidebar */}
             <div className="space-y-6">
               <motion.div
-                className="relative rounded-3xl sticky top-28"
-                initial={{ opacity: 0, x: 40 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ ...SPRING, delay: 0.3 }}
+                className="sticky top-28"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...SPRING, delay: 0.2 }}
               >
-                <GlowingEffect disabled={false} spread={50} borderWidth={2} proximity={80} />
-              <div
-                className="rounded-3xl p-8"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
-              >
-                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                  <Calendar size={20} style={{ color: '#4F8EF7' }} /> Book a Session
-                </h3>
+                <div className="cg-card p-7">
+                  <h3 className="font-display text-2xl mb-6 flex items-center gap-2" style={{ color: 'var(--ink)' }}>
+                    <Calendar size={20} style={{ color: 'var(--ink-soft)' }} /> Book a session
+                  </h3>
 
-                {Object.keys(availability).length > 0 ? (
-                  <div className="space-y-2 mb-6">
-                    {Object.entries(availability)
-                      .filter(([_, slots]) => (slots as string[]).length > 0)
-                      .slice(0, 5)
-                      .map(([day, slots]) => (
-                        <div key={day} className="flex justify-between items-center py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                          <span className="text-sm font-medium text-white">{day}</span>
-                          <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>{(slots as string[]).length} slot{(slots as string[]).length !== 1 ? 's' : ''}</span>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.4)' }}>Contact coach for availability.</p>
-                )}
-
-                <ShimmerButton
-                  shimmerColor="#4F8EF7"
-                  shimmerDuration="2.5s"
-                  borderRadius="12px"
-                  background="linear-gradient(135deg, #4F8EF7 0%, #2563EB 100%)"
-                  className="w-full mb-3 font-bold py-4 text-base"
-                  onClick={() => window.location.href = `/book/${coach.id}`}
-                >
-                  Book Now — ${coach.price_per_session}
-                </ShimmerButton>
-                {user && (
-                  <button
-                    onClick={async () => {
-                      if (!user || !coach) return;
-                      try {
-                        const { getDocs, query, collection, where } = await import('firebase/firestore');
-                        const q = query(
-                          collection(db, 'conversations'),
-                          where('coach_id', '==', coach.user_id),
-                          where('player_id', '==', user.uid)
-                        );
-                        const snap = await getDocs(q);
-                        const userSnap = await getDoc(doc(db, 'users', user.uid));
-                        const playerName = userSnap.exists() ? userSnap.data().name || user.displayName || 'Player' : user.displayName || 'Player';
-                        const convoId = !snap.empty ? snap.docs[0].id : (await addDoc(collection(db, 'conversations'), {
-                          coach_id: coach.user_id,
-                          player_id: user.uid,
-                          participants: [coach.user_id, user.uid],
-                          last_message: '',
-                          last_message_at: serverTimestamp(),
-                          unread_count_coach: 0,
-                          unread_count_player: 0,
-                          coach_name: coach.name,
-                          player_name: playerName,
-                        })).id;
-                        navigate(`/messages/${convoId}`);
-                      } catch (err) {
-                        handleFirestoreError(err, OperationType.WRITE, 'conversations');
-                      }
-                    }}
-                    className="btn-secondary w-full flex items-center justify-center gap-2 mb-4"
-                  >
-                    <MessageSquare size={16} /> Message Coach
-                  </button>
-                )}
-                {coach.packages && coach.packages.length > 0 && (
-                  <div className="mb-4 space-y-2">
-                    {coach.packages.map((pkg, i) => (
-                      <Link key={i} to={`/book/${coach.id}?pkg=${pkg.sessions}`}
-                        className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-bold transition-all hover:bg-white/10"
-                        style={{ background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)', color: '#4F8EF7' }}>
-                        <span>{pkg.label}</span>
-                        <span className="text-white">${Math.round(coach.price_per_session * pkg.sessions * (1 - pkg.discount_pct / 100))}</span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-                {coach.venmo_handle && (
-                  <div className="flex items-center gap-2 justify-center mb-3">
-                    <div className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                      style={{ background: '#008DF5' }}>
-                      V
+                  {Object.keys(availability).length > 0 ? (
+                    <div className="space-y-1 mb-6">
+                      {Object.entries(availability)
+                        .filter(([_, slots]) => (slots as string[]).length > 0)
+                        .slice(0, 5)
+                        .map(([day, slots]) => (
+                          <div key={day} className="flex justify-between items-center py-2" style={{ borderBottom: '1px solid var(--line)' }}>
+                            <span className="text-sm" style={{ color: 'var(--ink)' }}>{day}</span>
+                            <span className="text-xs" style={{ color: 'var(--ink-faint)' }}>{(slots as string[]).length} slot{(slots as string[]).length !== 1 ? 's' : ''}</span>
+                          </div>
+                        ))}
                     </div>
-                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                      Pay via Venmo <span className="text-white font-semibold">@{coach.venmo_handle}</span>
-                    </p>
-                  </div>
-                )}
-                <p className="text-[10px] text-center uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.15)' }}>
-                  Payment due after coach confirms
-                </p>
-              </div>
+                  ) : (
+                    <p className="text-sm mb-6" style={{ color: 'var(--ink-soft)' }}>Contact coach for availability.</p>
+                  )}
+
+                  {coach.location_modes && (
+                    <div className="flex flex-wrap gap-1.5 mb-5">
+                      {enabledLocationModes(coach.location_modes).map((m) => (
+                        <span key={m} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: 'var(--paper-warm)', color: 'var(--ink-soft)', border: '1px solid var(--line)' }}>
+                          {LOCATION_MODE_META[m].label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => window.location.href = `/book/${coach.id}`}
+                    className="btn-primary w-full justify-center mb-3 py-4 text-base"
+                  >
+                    {coach.instant_book ? 'Book instantly' : 'Book now'} — ${coach.price_per_session}
+                  </button>
+                  {user && (
+                    <button onClick={messageCoach} className="btn-secondary w-full flex items-center justify-center gap-2 mb-4">
+                      <MessageSquare size={16} /> Message coach
+                    </button>
+                  )}
+                  {coach.packages && coach.packages.length > 0 && (
+                    <div className="mb-4 space-y-2">
+                      {coach.packages.map((pkg: any, i: number) => (
+                        <Link key={i} to={`/book/${coach.id}?pkg=${pkg.sessions}`}
+                          className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm transition-colors hover:bg-[rgba(27,24,19,0.04)]"
+                          style={{ background: 'var(--paper-warm)', border: '1px solid var(--line)', color: 'var(--ink)' }}>
+                          <span>{pkg.label}</span>
+                          <span className="font-display text-lg">${Math.round(coach.price_per_session * pkg.sessions * (1 - pkg.discount_pct / 100))}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                  {coach.venmo_handle && (
+                    <div className="flex items-center gap-2 justify-center mb-3">
+                      <div className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: 'var(--c-venmo)' }}>
+                        V
+                      </div>
+                      <p className="text-xs" style={{ color: 'var(--ink-soft)' }}>
+                        Pay via Venmo <span style={{ color: 'var(--ink)' }}>@{coach.venmo_handle}</span>
+                      </p>
+                    </div>
+                  )}
+                  <p className="text-[11px] text-center uppercase tracking-wider" style={{ color: 'var(--ink-faint)' }}>
+                    Payment due after coach confirms
+                  </p>
+                </div>
               </motion.div>
             </div>
 

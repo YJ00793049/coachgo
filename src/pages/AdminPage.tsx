@@ -66,7 +66,7 @@ export default function AdminPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0A0F1E' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F6F4EF' }}>
         <Link to="/auth" className="btn-primary py-3 px-8">Sign In</Link>
       </div>
     );
@@ -74,18 +74,18 @@ export default function AdminPage() {
 
   if (isAdmin === null || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0A0F1E' }}>
-        <Loader2 className="animate-spin" size={40} style={{ color: '#4F8EF7' }} />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F6F4EF' }}>
+        <Loader2 className="animate-spin" size={40} style={{ color: '#1B1813' }} />
       </div>
     );
   }
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4" style={{ background: '#0A0F1E' }}>
-        <ShieldAlert size={56} style={{ color: 'rgba(239,68,68,0.6)' }} />
-        <h1 className="font-display text-3xl text-white">Access Denied</h1>
-        <p style={{ color: 'rgba(255,255,255,0.4)' }}>This page is restricted to administrators.</p>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4" style={{ background: '#F6F4EF' }}>
+        <ShieldAlert size={56} style={{ color: 'rgba(188,90,72,0.6)' }} />
+        <h1 className="font-display text-3xl text-ink">Access Denied</h1>
+        <p style={{ color: 'rgba(27,24,19,0.4)' }}>This page is restricted to administrators.</p>
         <Link to="/dashboard" className="btn-primary py-3 px-8">Back to Dashboard</Link>
       </div>
     );
@@ -95,8 +95,8 @@ export default function AdminPage() {
   const byStatus = (s: string) => bookings.filter(b => b.status === s).length;
 
   const statusColor: Record<string, string> = {
-    pending: '#4F8EF7', confirmed: '#22c55e', completed: '#a855f7',
-    cancelled: 'rgba(255,255,255,0.3)', declined: '#ef4444', reschedule_requested: '#F59E0B',
+    pending: '#1B1813', confirmed: '#5E8C5A', completed: '#8A7BA8',
+    cancelled: 'rgba(27,24,19,0.3)', declined: '#BC5A48', reschedule_requested: '#C79A57',
   };
 
   const overviewStats = [
@@ -110,12 +110,12 @@ export default function AdminPage() {
 
   return (
     <PageTransition>
-      <div className="min-h-screen pt-20" style={{ background: '#0A0F1E' }}>
-        <div className="relative overflow-hidden" style={{ background: 'rgba(79,142,247,0.05)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="min-h-screen pt-20" style={{ background: '#F6F4EF' }}>
+        <div className="relative overflow-hidden" style={{ background: 'rgba(27,24,19,0.05)', borderBottom: '1px solid rgba(27,24,19,0.06)' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 relative z-10">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>Admin Panel</p>
-              <h1 className="font-display text-4xl md:text-5xl text-white">Platform Overview</h1>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-3" style={{ color: 'rgba(27,24,19,0.3)' }}>Admin Panel</p>
+              <h1 className="font-display text-4xl md:text-5xl text-ink">Platform Overview</h1>
             </motion.div>
           </div>
         </div>
@@ -126,10 +126,10 @@ export default function AdminPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-12">
             {overviewStats.map((s, i) => (
               <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
-                className="glass-card rounded-2xl p-5 border border-white/10">
-                <div className="mb-2" style={{ color: '#4F8EF7' }}>{s.icon}</div>
-                <p className="text-2xl font-bold text-white">{s.value}</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>{s.label}</p>
+                className="glass-card rounded-2xl p-5 border border-[rgba(27,24,19,0.10)]">
+                <div className="mb-2" style={{ color: '#1B1813' }}>{s.icon}</div>
+                <p className="text-2xl font-bold text-ink">{s.value}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: 'rgba(27,24,19,0.2)' }}>{s.label}</p>
               </motion.div>
             ))}
           </div>
@@ -140,9 +140,9 @@ export default function AdminPage() {
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className="px-5 py-2.5 rounded-xl text-sm font-bold uppercase tracking-widest transition-all"
                 style={{
-                  background: activeTab === tab ? 'rgba(79,142,247,0.15)' : 'rgba(255,255,255,0.03)',
-                  color: activeTab === tab ? '#4F8EF7' : 'rgba(255,255,255,0.35)',
-                  border: `1px solid ${activeTab === tab ? 'rgba(79,142,247,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                  background: activeTab === tab ? 'rgba(27,24,19,0.15)' : 'rgba(27,24,19,0.03)',
+                  color: activeTab === tab ? '#1B1813' : 'rgba(27,24,19,0.35)',
+                  border: `1px solid ${activeTab === tab ? 'rgba(27,24,19,0.3)' : 'rgba(27,24,19,0.06)'}`,
                 }}>
                 {tab}
               </button>
@@ -152,8 +152,8 @@ export default function AdminPage() {
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="glass-card rounded-3xl border border-white/10 p-8">
-                <h3 className="font-display text-xl text-white mb-6">Bookings by Status</h3>
+              <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
+                <h3 className="font-display text-xl text-ink mb-6">Bookings by Status</h3>
                 <div className="space-y-4">
                   {Object.entries(statusColor).map(([status, color]) => {
                     const count = byStatus(status);
@@ -161,10 +161,10 @@ export default function AdminPage() {
                     return (
                       <div key={status}>
                         <div className="flex justify-between mb-1.5">
-                          <span className="text-xs font-bold capitalize" style={{ color: 'rgba(255,255,255,0.5)' }}>{status.replace('_', ' ')}</span>
+                          <span className="text-xs font-bold capitalize" style={{ color: 'rgba(27,24,19,0.5)' }}>{status.replace('_', ' ')}</span>
                           <span className="text-xs font-bold" style={{ color }}>{count} ({pct}%)</span>
                         </div>
-                        <div className="w-full h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        <div className="w-full h-1.5 rounded-full" style={{ background: 'rgba(27,24,19,0.06)' }}>
                           <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
                         </div>
                       </div>
@@ -173,14 +173,14 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="glass-card rounded-3xl border border-white/10 p-8">
-                <h3 className="font-display text-xl text-white mb-6">Recent Bookings</h3>
+              <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
+                <h3 className="font-display text-xl text-ink mb-6">Recent Bookings</h3>
                 <div className="space-y-3">
                   {bookings.slice(0, 6).map(b => (
-                    <div key={b.id} className="flex items-center justify-between gap-4 py-2 border-b border-white/5 last:border-0">
+                    <div key={b.id} className="flex items-center justify-between gap-4 py-2 border-b border-[rgba(27,24,19,0.06)] last:border-0">
                       <div>
-                        <p className="text-sm font-bold text-white">{b.player_name || 'Player'}</p>
-                        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>{b.session_type} · {b.date}</p>
+                        <p className="text-sm font-bold text-ink">{b.player_name || 'Player'}</p>
+                        <p className="text-xs" style={{ color: 'rgba(27,24,19,0.35)' }}>{b.session_type} · {b.date}</p>
                       </div>
                       <span className="text-[10px] font-bold px-2 py-1 rounded-full capitalize"
                         style={{ background: `${statusColor[b.status] || '#fff'}15`, color: statusColor[b.status] || '#fff' }}>
@@ -195,9 +195,9 @@ export default function AdminPage() {
 
           {/* Bookings Tab */}
           {activeTab === 'bookings' && (
-            <div className="glass-card rounded-3xl border border-white/10 overflow-hidden">
+            <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] overflow-hidden">
               <table className="w-full text-left text-sm">
-                <thead className="bg-white/5 text-[10px] uppercase tracking-widest font-bold" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                <thead className="bg-[rgba(27,24,19,0.04)] text-[10px] uppercase tracking-widest font-bold" style={{ color: 'rgba(27,24,19,0.3)' }}>
                   <tr>
                     <th className="px-6 py-4">Player</th>
                     <th className="px-6 py-4">Session</th>
@@ -207,15 +207,15 @@ export default function AdminPage() {
                     <th className="px-6 py-4">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y divide-[rgba(27,24,19,0.06)]">
                   {bookings.map(b => (
                     <>
-                      <tr key={b.id} className="hover:bg-white/3 transition-colors cursor-pointer"
+                      <tr key={b.id} className="hover:bg-[rgba(27,24,19,0.03)] transition-colors cursor-pointer"
                         onClick={() => setExpandedBooking(expandedBooking === b.id ? null : b.id)}>
-                        <td className="px-6 py-4 font-medium text-white">{b.player_name || '—'}</td>
-                        <td className="px-6 py-4" style={{ color: 'rgba(255,255,255,0.45)' }}>{b.session_type}</td>
-                        <td className="px-6 py-4" style={{ color: 'rgba(255,255,255,0.45)' }}>{b.date}</td>
-                        <td className="px-6 py-4 font-bold" style={{ color: '#4F8EF7' }}>${b.total_price}</td>
+                        <td className="px-6 py-4 font-medium text-ink">{b.player_name || '—'}</td>
+                        <td className="px-6 py-4" style={{ color: 'rgba(27,24,19,0.45)' }}>{b.session_type}</td>
+                        <td className="px-6 py-4" style={{ color: 'rgba(27,24,19,0.45)' }}>{b.date}</td>
+                        <td className="px-6 py-4 font-bold" style={{ color: '#1B1813' }}>${b.total_price}</td>
                         <td className="px-6 py-4">
                           <span className="text-[10px] font-bold px-2 py-1 rounded-full capitalize"
                             style={{ background: `${statusColor[b.status] || '#fff'}15`, color: statusColor[b.status] || '#fff' }}>
@@ -223,18 +223,18 @@ export default function AdminPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          {expandedBooking === b.id ? <ChevronUp size={16} style={{ color: 'rgba(255,255,255,0.3)' }} /> : <ChevronDown size={16} style={{ color: 'rgba(255,255,255,0.3)' }} />}
+                          {expandedBooking === b.id ? <ChevronUp size={16} style={{ color: 'rgba(27,24,19,0.3)' }} /> : <ChevronDown size={16} style={{ color: 'rgba(27,24,19,0.3)' }} />}
                         </td>
                       </tr>
                       {expandedBooking === b.id && (
                         <tr key={`${b.id}-exp`}>
-                          <td colSpan={6} className="px-6 py-4" style={{ background: 'rgba(255,255,255,0.02)' }}>
+                          <td colSpan={6} className="px-6 py-4" style={{ background: 'rgba(27,24,19,0.02)' }}>
                             <div className="flex flex-wrap gap-4 text-xs mb-4">
-                              <div><span style={{ color: 'rgba(255,255,255,0.35)' }}>Coach ID: </span><span className="text-white font-mono">{b.coach_id}</span></div>
-                              <div><span style={{ color: 'rgba(255,255,255,0.35)' }}>Player ID: </span><span className="text-white font-mono">{b.player_id}</span></div>
-                              <div><span style={{ color: 'rgba(255,255,255,0.35)' }}>Time: </span><span className="text-white">{b.time_slot}</span></div>
-                              <div><span style={{ color: 'rgba(255,255,255,0.35)' }}>Level: </span><span className="text-white">{b.skill_level}</span></div>
-                              {b.notes && <div className="w-full"><span style={{ color: 'rgba(255,255,255,0.35)' }}>Notes: </span><span className="text-white">{b.notes}</span></div>}
+                              <div><span style={{ color: 'rgba(27,24,19,0.35)' }}>Coach ID: </span><span className="text-ink font-mono">{b.coach_id}</span></div>
+                              <div><span style={{ color: 'rgba(27,24,19,0.35)' }}>Player ID: </span><span className="text-ink font-mono">{b.player_id}</span></div>
+                              <div><span style={{ color: 'rgba(27,24,19,0.35)' }}>Time: </span><span className="text-ink">{b.time_slot}</span></div>
+                              <div><span style={{ color: 'rgba(27,24,19,0.35)' }}>Level: </span><span className="text-ink">{b.skill_level}</span></div>
+                              {b.notes && <div className="w-full"><span style={{ color: 'rgba(27,24,19,0.35)' }}>Notes: </span><span className="text-ink">{b.notes}</span></div>}
                             </div>
                             <div className="flex gap-2 flex-wrap">
                               {['pending','confirmed','completed','cancelled','declined'].map(s => (
@@ -254,16 +254,16 @@ export default function AdminPage() {
                 </tbody>
               </table>
               {bookings.length === 0 && (
-                <div className="py-16 text-center" style={{ color: 'rgba(255,255,255,0.3)' }}>No bookings yet.</div>
+                <div className="py-16 text-center" style={{ color: 'rgba(27,24,19,0.3)' }}>No bookings yet.</div>
               )}
             </div>
           )}
 
           {/* Coaches Tab */}
           {activeTab === 'coaches' && (
-            <div className="glass-card rounded-3xl border border-white/10 overflow-hidden">
+            <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] overflow-hidden">
               <table className="w-full text-left text-sm">
-                <thead className="bg-white/5 text-[10px] uppercase tracking-widest font-bold" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                <thead className="bg-[rgba(27,24,19,0.04)] text-[10px] uppercase tracking-widest font-bold" style={{ color: 'rgba(27,24,19,0.3)' }}>
                   <tr>
                     <th className="px-6 py-4">Name</th>
                     <th className="px-6 py-4">Specialty</th>
@@ -272,33 +272,33 @@ export default function AdminPage() {
                     <th className="px-6 py-4">Profile</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y divide-[rgba(27,24,19,0.06)]">
                   {coaches.map(c => (
-                    <tr key={c.id} className="hover:bg-white/3 transition-colors">
+                    <tr key={c.id} className="hover:bg-[rgba(27,24,19,0.03)] transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           {c.photo_url && <img src={c.photo_url} alt="" className="w-8 h-8 rounded-xl object-cover" />}
-                          <span className="font-medium text-white">{c.name || c.id}</span>
+                          <span className="font-medium text-ink">{c.name || c.id}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 capitalize" style={{ color: 'rgba(255,255,255,0.45)' }}>{c.specialty || '—'}</td>
-                      <td className="px-6 py-4 font-bold" style={{ color: '#F59E0B' }}>{c.rating ? `★ ${c.rating}` : '—'}</td>
+                      <td className="px-6 py-4 capitalize" style={{ color: 'rgba(27,24,19,0.45)' }}>{c.specialty || '—'}</td>
+                      <td className="px-6 py-4 font-bold" style={{ color: '#C79A57' }}>{c.rating ? `★ ${c.rating}` : '—'}</td>
                       <td className="px-6 py-4">
                         <span className="text-[10px] font-bold px-2 py-1 rounded-full"
-                          style={{ background: c.is_active !== false ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.05)', color: c.is_active !== false ? '#22c55e' : 'rgba(255,255,255,0.3)' }}>
+                          style={{ background: c.is_active !== false ? 'rgba(94,140,90,0.1)' : 'rgba(27,24,19,0.05)', color: c.is_active !== false ? '#5E8C5A' : 'rgba(27,24,19,0.3)' }}>
                           {c.is_active !== false ? 'Active' : 'Inactive'}
                         </span>
                       </td>
                       <td className="px-6 py-4">
                         <a href={`/coaches/${c.id}`} target="_blank" rel="noopener noreferrer"
-                          className="text-xs font-bold" style={{ color: '#4F8EF7' }}>View →</a>
+                          className="text-xs font-bold" style={{ color: '#1B1813' }}>View →</a>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               {coaches.length === 0 && (
-                <div className="py-16 text-center" style={{ color: 'rgba(255,255,255,0.3)' }}>No coach profiles found.</div>
+                <div className="py-16 text-center" style={{ color: 'rgba(27,24,19,0.3)' }}>No coach profiles found.</div>
               )}
             </div>
           )}

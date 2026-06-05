@@ -6,8 +6,11 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import PageTransition from '../components/PageTransition';
 import AnimatedCounter from '../components/AnimatedCounter';
+import MarketingToolkit from '../components/MarketingToolkit';
 import { SPRING } from '../tokens';
-import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc, serverTimestamp, getDocs, deleteDoc, getCountFromServer } from 'firebase/firestore';
+import { LOCATION_MODE_META } from '../utils/scheduling';
+import type { LocationMode } from '../types';
 import { MOCK_COACHES } from './CoachesPage';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 import { GlowingEffect } from '@/components/ui/glowing-effect-card';
@@ -74,30 +77,30 @@ function ReviewModal({ session, coachName, onClose, onSubmit }: ReviewModalProps
           transition={{ duration: 0.25 }}
           onClick={e => e.stopPropagation()}
           className="w-full max-w-md rounded-3xl p-8"
-          style={{ background: '#0F1628', border: '1px solid rgba(255,255,255,0.08)' }}
+          style={{ background: '#FBFAF6', border: '1px solid rgba(27,24,19,0.08)' }}
         >
           {submitted ? (
             <div className="text-center py-8">
-              <CheckCircle2 size={48} className="mx-auto mb-4" style={{ color: '#22c55e' }} />
-              <p className="font-bold text-white text-xl mb-2">Review Submitted!</p>
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Thanks for sharing your feedback.</p>
+              <CheckCircle2 size={48} className="mx-auto mb-4" style={{ color: '#5E8C5A' }} />
+              <p className="font-bold text-ink text-xl mb-2">Review Submitted!</p>
+              <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>Thanks for sharing your feedback.</p>
             </div>
           ) : (
             <>
               <div className="flex items-start justify-between mb-6">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#4F8EF7' }}>Leave a Review</p>
-                  <h3 className="font-display text-2xl text-white">{coachName}</h3>
-                  <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{session.session_type} · {session.date}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#1B1813' }}>Leave a Review</p>
+                  <h3 className="font-display text-2xl text-ink">{coachName}</h3>
+                  <p className="text-sm mt-1" style={{ color: 'rgba(27,24,19,0.4)' }}>{session.session_type} · {session.date}</p>
                 </div>
-                <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 transition-all" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <button onClick={onClose} className="p-2 rounded-xl hover:bg-[rgba(27,24,19,0.04)] transition-all" style={{ color: 'rgba(27,24,19,0.4)' }}>
                   <X size={20} />
                 </button>
               </div>
 
               {/* Stars */}
               <div className="mb-6">
-                <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>Your Rating</p>
+                <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(27,24,19,0.3)' }}>Your Rating</p>
                 <div className="flex gap-2">
                   {[1, 2, 3, 4, 5].map(star => (
                     <button
@@ -109,14 +112,14 @@ function ReviewModal({ session, coachName, onClose, onSubmit }: ReviewModalProps
                     >
                       <Star
                         size={32}
-                        fill={star <= (hovered || rating) ? '#F59E0B' : 'transparent'}
-                        style={{ color: star <= (hovered || rating) ? '#F59E0B' : 'rgba(255,255,255,0.15)', transition: 'all 0.15s' }}
+                        fill={star <= (hovered || rating) ? '#C79A57' : 'transparent'}
+                        style={{ color: star <= (hovered || rating) ? '#C79A57' : 'rgba(27,24,19,0.15)', transition: 'all 0.15s' }}
                       />
                     </button>
                   ))}
                 </div>
                 {rating > 0 && (
-                  <p className="text-xs mt-2 font-medium" style={{ color: '#F59E0B' }}>
+                  <p className="text-xs mt-2 font-medium" style={{ color: '#C79A57' }}>
                     {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent!'][rating]}
                   </p>
                 )}
@@ -124,16 +127,16 @@ function ReviewModal({ session, coachName, onClose, onSubmit }: ReviewModalProps
 
               {/* Comment */}
               <div className="mb-6">
-                <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>Your Review</p>
+                <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(27,24,19,0.3)' }}>Your Review</p>
                 <textarea
                   value={comment}
                   onChange={e => setComment(e.target.value)}
                   placeholder="How was your session? What did you improve?"
                   rows={4}
-                  className="w-full rounded-2xl px-4 py-3 text-sm text-white resize-none focus:outline-none transition-all"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'white' }}
+                  className="w-full rounded-2xl px-4 py-3 text-sm text-ink resize-none focus:outline-none transition-all"
+                  style={{ background: '#FFFFFF', border: '1px solid rgba(27,24,19,0.16)', color: '#1B1813' }}
                 />
-                <p className="text-[10px] mt-1 text-right" style={{ color: 'rgba(255,255,255,0.2)' }}>{comment.length}/500</p>
+                <p className="text-[10px] mt-1 text-right" style={{ color: 'rgba(27,24,19,0.2)' }}>{comment.length}/500</p>
               </div>
 
               <button
@@ -181,38 +184,38 @@ function RescheduleModal({ session, coachName, onClose, onSubmit, date, setDate,
           exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}
           onClick={e => e.stopPropagation()}
           className="w-full max-w-md rounded-3xl p-8"
-          style={{ background: '#0F1628', border: '1px solid rgba(255,255,255,0.08)' }}>
+          style={{ background: '#FBFAF6', border: '1px solid rgba(27,24,19,0.08)' }}>
           <div className="flex items-start justify-between mb-6">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#4F8EF7' }}>Request Reschedule</p>
-              <h3 className="font-display text-2xl text-white">{session.session_type}</h3>
-              <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>with {coachName} · currently {session.date} at {session.time_slot}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#1B1813' }}>Request Reschedule</p>
+              <h3 className="font-display text-2xl text-ink">{session.session_type}</h3>
+              <p className="text-sm mt-1" style={{ color: 'rgba(27,24,19,0.4)' }}>with {coachName} · currently {session.date} at {session.time_slot}</p>
             </div>
-            <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 transition-all" style={{ color: 'rgba(255,255,255,0.4)' }}><X size={20} /></button>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-[rgba(27,24,19,0.04)] transition-all" style={{ color: 'rgba(27,24,19,0.4)' }}><X size={20} /></button>
           </div>
           <div className="space-y-4 mb-6">
             <div>
-              <label className="text-xs font-bold uppercase tracking-widest mb-2 block" style={{ color: 'rgba(255,255,255,0.3)' }}>New Date</label>
+              <label className="text-xs font-bold uppercase tracking-widest mb-2 block" style={{ color: 'rgba(27,24,19,0.3)' }}>New Date</label>
               <input type="date" min={today} value={date} onChange={e => setDate(e.target.value)}
-                className="w-full rounded-2xl px-4 py-3 text-sm text-white focus:outline-none"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', colorScheme: 'dark' }} />
+                className="w-full rounded-2xl px-4 py-3 text-sm text-ink focus:outline-none"
+                style={{ background: 'rgba(27,24,19,0.04)', border: '1px solid rgba(27,24,19,0.08)', colorScheme: 'light' }} />
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-widest mb-2 block" style={{ color: 'rgba(255,255,255,0.3)' }}>New Time</label>
+              <label className="text-xs font-bold uppercase tracking-widest mb-2 block" style={{ color: 'rgba(27,24,19,0.3)' }}>New Time</label>
               <select value={time} onChange={e => setTime(e.target.value)}
-                className="w-full rounded-2xl px-4 py-3 text-sm text-white focus:outline-none"
-                style={{ background: '#0F1628', border: '1px solid rgba(255,255,255,0.08)' }}>
+                className="w-full rounded-2xl px-4 py-3 text-sm text-ink focus:outline-none"
+                style={{ background: '#FBFAF6', border: '1px solid rgba(27,24,19,0.08)' }}>
                 <option value="">Select time...</option>
                 {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-widest mb-2 block" style={{ color: 'rgba(255,255,255,0.3)' }}>Note (optional)</label>
+              <label className="text-xs font-bold uppercase tracking-widest mb-2 block" style={{ color: 'rgba(27,24,19,0.3)' }}>Note (optional)</label>
               <textarea value={note} onChange={e => setNote(e.target.value)}
                 placeholder="Reason for reschedule..."
                 rows={3}
-                className="w-full rounded-2xl px-4 py-3 text-sm text-white resize-none focus:outline-none"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }} />
+                className="w-full rounded-2xl px-4 py-3 text-sm text-ink resize-none focus:outline-none"
+                style={{ background: 'rgba(27,24,19,0.04)', border: '1px solid rgba(27,24,19,0.08)' }} />
             </div>
           </div>
           <button onClick={onSubmit} disabled={!date || !time || submitting}
@@ -247,6 +250,10 @@ export default function DashboardPage() {
   const [rescheduleTime, setRescheduleTime] = useState('');
   const [rescheduleNote, setRescheduleNote] = useState('');
   const [rescheduling, setRescheduling] = useState(false);
+  const [myWaitlist, setMyWaitlist] = useState<any[]>([]);
+  const [coachWaitlist, setCoachWaitlist] = useState<any[]>([]);
+  const [profileViews, setProfileViews] = useState<number | null>(null);
+  const [coachProfileData, setCoachProfileData] = useState<any>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -258,7 +265,10 @@ export default function DashboardPage() {
         if (role === 'coach') {
           try {
             const coachDoc = await getDoc(doc(db, 'coach_profiles', user.uid));
-            if (coachDoc.exists()) setCoachProfilePhoto(coachDoc.data().photo_url || null);
+            if (coachDoc.exists()) {
+              setCoachProfilePhoto(coachDoc.data().photo_url || null);
+              setCoachProfileData(coachDoc.data());
+            }
           } catch { /* non-critical */ }
         }
       } catch {
@@ -303,8 +313,30 @@ export default function DashboardPage() {
       setReviewedBookingIds(new Set(snap.docs.map(d => d.data().booking_id)));
     });
 
-    return () => { unsubPlayer(); unsubCoach(); unsubFav(); unsubReviews(); };
+    // Waitlist entries — as a player (mine) and as a coach (for my slots)
+    const qMyWait = query(collection(db, 'waitlists'), where('player_id', '==', user.uid));
+    const unsubMyWait = onSnapshot(qMyWait, (snap) => {
+      setMyWaitlist(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, () => {});
+
+    const qCoachWait = query(collection(db, 'waitlists'), where('coach_id', '==', user.uid));
+    const unsubCoachWait = onSnapshot(qCoachWait, (snap) => {
+      setCoachWaitlist(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, () => {});
+
+    return () => { unsubPlayer(); unsubCoach(); unsubFav(); unsubReviews(); unsubMyWait(); unsubCoachWait(); };
   }, [user]);
+
+  // Profile view count (coach analytics)
+  useEffect(() => {
+    if (!user || userRole !== 'coach') return;
+    (async () => {
+      try {
+        const c = await getCountFromServer(query(collection(db, 'coach_views'), where('coach_id', '==', user.uid)));
+        setProfileViews(c.data().count);
+      } catch { setProfileViews(null); }
+    })();
+  }, [user, userRole]);
 
   useEffect(() => {
     if (!user || !userRole || (bookings.length === 0 && coachBookings.length === 0)) return;
@@ -389,6 +421,18 @@ export default function DashboardPage() {
       setRescheduleDate(''); setRescheduleTime(''); setRescheduleNote('');
     } catch (err) { console.error(err); }
     finally { setRescheduling(false); }
+  };
+
+  const leaveWaitlist = async (id: string) => {
+    try { await deleteDoc(doc(db, 'waitlists', id)); }
+    catch (err) { console.error(err); }
+  };
+
+  const notifyWaitlist = async (id: string) => {
+    setUpdatingId(id);
+    try { await updateDoc(doc(db, 'waitlists', id), { notified: true }); }
+    catch (err) { console.error(err); }
+    finally { setUpdatingId(null); }
   };
 
   const acceptReschedule = async (bookingId: string, newDate: string, newTime: string) => {
@@ -557,6 +601,32 @@ export default function DashboardPage() {
   const totalRevenue = completedCoachSessions.reduce((sum, b) => sum + (b.total_price || 0), 0);
   const uniquePlayers = new Set(coachBookings.filter(b => ['confirmed', 'completed'].includes(b.status)).map(b => b.player_id)).size;
 
+  // Analytics: conversion (views → bookings) and repeat-client rate
+  const totalBookingsCount = coachBookings.length;
+  const conversionRate = (profileViews && profileViews > 0)
+    ? Math.min(100, Math.round((totalBookingsCount / profileViews) * 100))
+    : null;
+  const playerBookingCounts = coachBookings
+    .filter(b => ['confirmed', 'completed'].includes(b.status))
+    .reduce((acc: Record<string, number>, b) => { acc[b.player_id] = (acc[b.player_id] || 0) + 1; return acc; }, {});
+  const repeatClients = Object.values(playerBookingCounts).filter((n) => (n as number) > 1).length;
+  const repeatRate = uniquePlayers > 0 ? Math.round((repeatClients / uniquePlayers) * 100) : 0;
+
+  // Profile completeness + nudges
+  const cp = coachProfileData || {};
+  const completenessItems = [
+    { label: 'Profile photo', done: !!(cp.photo_url || coachProfilePhoto), nudge: 'Players skim photos first — add a clear headshot.' },
+    { label: 'Intro video', done: !!cp.video_url, nudge: 'Coaches with an intro video get 3× more bookings.' },
+    { label: 'Bio', done: (cp.bio || '').length >= 20, nudge: 'A short bio builds trust with parents and players.' },
+    { label: 'Skill tags', done: Array.isArray(cp.skills) && cp.skills.length > 0, nudge: 'Tag what you teach so the right players find you.' },
+    { label: 'Pricing', done: (Array.isArray(cp.session_types_with_price) && cp.session_types_with_price.length > 0) || cp.price_per_session > 0, nudge: 'Set your session types and prices.' },
+    { label: 'Venmo handle', done: !!cp.venmo_handle, nudge: 'Required so players can pay you after sessions.' },
+    { label: 'Availability', done: !!(cp.availability && Object.values(cp.availability).some((a: any) => Array.isArray(a) && a.length > 0)), nudge: 'Add weekly times so players can self-book.' },
+    { label: 'Affiliations', done: Array.isArray(cp.affiliations) && cp.affiliations.length > 0, nudge: 'Show teams/schools to back up your credentials.' },
+  ];
+  const profileStrength = Math.round(completenessItems.filter(i => i.done).length / completenessItems.length * 100);
+  const topNudge = completenessItems.find(i => !i.done);
+
   const monthlyRevenue = completedCoachSessions.reduce((acc: Record<string, number>, b) => {
     if (!b.date) return acc;
     const [y, mo] = b.date.split('-');
@@ -574,15 +644,15 @@ export default function DashboardPage() {
     .map(([k, v]) => ({ label: `${MONTH_NAMES[k.split('-')[1]]} ${k.split('-')[0]}`, value: Number(v) }));
 
   if (loading || roleLoading) return (
-    <div className="min-h-screen pt-20" style={{ background: '#0A0F1E' }}>
-      <div className="relative overflow-hidden" style={{ background: 'rgba(79,142,247,0.05)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+    <div className="min-h-screen pt-20" style={{ background: '#F6F4EF' }}>
+      <div className="relative overflow-hidden" style={{ background: 'rgba(27,24,19,0.05)', borderBottom: '1px solid rgba(27,24,19,0.06)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="skeleton h-4 w-32 rounded-full mb-4" />
           <div className="skeleton h-14 w-80 rounded-2xl mb-3" />
           <div className="skeleton h-5 w-64 rounded-xl mb-12" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="rounded-2xl p-6 border border-white/10" style={{ background: 'rgba(255,255,255,0.03)' }}>
+              <div key={i} className="rounded-2xl p-6 border border-[rgba(27,24,19,0.10)]" style={{ background: 'rgba(27,24,19,0.03)' }}>
                 <div className="skeleton h-5 w-5 rounded-lg mb-3" />
                 <div className="skeleton h-8 w-16 rounded-xl mb-2" />
                 <div className="skeleton h-3 w-20 rounded-full" />
@@ -598,16 +668,16 @@ export default function DashboardPage() {
   if (userRole === 'coach') {
     return (
       <PageTransition>
-        <div className="min-h-screen pt-20" style={{ background: '#0A0F1E' }}>
-          <div className="relative overflow-hidden" style={{ background: 'rgba(79,142,247,0.05)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(79,142,247,0.08) 0%, transparent 70%)' }} />
+        <div className="min-h-screen pt-20" style={{ background: '#F6F4EF' }}>
+          <div className="relative overflow-hidden" style={{ background: 'rgba(27,24,19,0.05)', borderBottom: '1px solid rgba(27,24,19,0.06)' }}>
+            <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(27,24,19,0.08) 0%, transparent 70%)' }} />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-4" style={{ color: 'rgba(255,255,255,0.3)' }}>Coach Portal</p>
-                <h1 className="font-display text-5xl md:text-6xl text-white mb-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-4" style={{ color: 'rgba(27,24,19,0.3)' }}>Coach Portal</p>
+                <h1 className="font-display text-5xl md:text-6xl text-ink mb-3">
                   Welcome back, {user?.displayName?.split(' ')[0] || 'Coach'}
                 </h1>
-                <p style={{ color: 'rgba(255,255,255,0.45)' }} className="text-lg">Here's what's happening with your sessions.</p>
+                <p style={{ color: 'rgba(27,24,19,0.45)' }} className="text-lg">Here's what's happening with your sessions.</p>
               </motion.div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12" style={{ perspective: '1000px' }}>
                 {[
@@ -621,15 +691,15 @@ export default function DashboardPage() {
                     initial={{ opacity: 0, rotateY: 90, scale: 0.9 }}
                     animate={{ opacity: 1, rotateY: 0, scale: 1 }}
                     transition={{ ...SPRING, delay: i * 0.1 }}
-                    whileHover={{ y: -4, boxShadow: '0 20px 60px rgba(79,142,247,0.2)' }}
-                    className="glass-card rounded-2xl p-6 border border-white/10 cursor-default"
+                    whileHover={{ y: -4, boxShadow: '0 20px 60px rgba(27,24,19,0.2)' }}
+                    className="glass-card rounded-2xl p-6 border border-[rgba(27,24,19,0.10)] cursor-default"
                     style={{ transformStyle: 'preserve-3d' }}
                   >
-                    <div className="mb-3" style={{ color: '#4F8EF7' }}>{stat.icon}</div>
-                    <p className="text-2xl font-bold text-white">
+                    <div className="mb-3" style={{ color: '#1B1813' }}>{stat.icon}</div>
+                    <p className="text-2xl font-bold text-ink">
                       {stat.prefix}<AnimatedCounter to={stat.value} />
                     </p>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mt-2" style={{ color: 'rgba(255,255,255,0.2)' }}>{stat.label}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mt-2" style={{ color: 'rgba(27,24,19,0.2)' }}>{stat.label}</p>
                   </motion.div>
                 ))}
               </div>
@@ -643,37 +713,37 @@ export default function DashboardPage() {
                 {pendingCoachSessions.length > 0 && (
                   <section>
                     <div className="flex justify-between items-center mb-6">
-                      <h2 className="font-display text-3xl text-white">Booking Requests</h2>
+                      <h2 className="font-display text-3xl text-ink">Booking Requests</h2>
                       <span className="tag-badge animate-pulse">{pendingCoachSessions.length} pending</span>
                     </div>
                     <div className="space-y-4">
                       {pendingCoachSessions.map((session, i) => (
                         <motion.div key={session.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                          className="rounded-2xl p-6" style={{ background: 'rgba(79,142,247,0.06)', border: '1px solid rgba(79,142,247,0.2)' }}>
+                          className="rounded-2xl p-6" style={{ background: 'rgba(27,24,19,0.06)', border: '1px solid rgba(27,24,19,0.2)' }}>
                           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                             <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0"
-                              style={{ background: 'rgba(79,142,247,0.15)', border: '1px solid rgba(79,142,247,0.25)', color: '#4F8EF7' }}>
+                              style={{ background: 'rgba(27,24,19,0.15)', border: '1px solid rgba(27,24,19,0.25)', color: '#1B1813' }}>
                               <span className="text-[10px] font-bold uppercase">{session.date ? new Date(session.date).toLocaleString('default', { month: 'short' }) : '—'}</span>
                               <span className="text-xl font-bold leading-none">{session.date?.split('-')[2] || '—'}</span>
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-1">
-                                <h4 className="font-bold text-white text-lg">{session.player_name || 'Player'}</h4>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}>{session.skill_level}</span>
+                                <h4 className="font-bold text-ink text-lg">{session.player_name || 'Player'}</h4>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase" style={{ background: 'rgba(27,24,19,0.06)', color: 'rgba(27,24,19,0.4)' }}>{session.skill_level}</span>
                               </div>
-                              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>{session.session_type} · {session.date} at {session.time_slot}</p>
-                              <p className="text-sm font-bold mt-1" style={{ color: '#4F8EF7' }}>${session.total_price}</p>
+                              <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>{session.session_type} · {session.date} at {session.time_slot}</p>
+                              <p className="text-sm font-bold mt-1" style={{ color: '#1B1813' }}>${session.total_price}</p>
                             </div>
                             <div className="flex gap-3 shrink-0">
                               <button onClick={() => updateBookingStatus(session.id, 'confirmed')} disabled={updatingId === session.id}
                                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-                                style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e' }}>
+                                style={{ background: 'rgba(94,140,90,0.15)', border: '1px solid rgba(94,140,90,0.3)', color: '#5E8C5A' }}>
                                 {updatingId === session.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
                                 Accept
                               </button>
                               <button onClick={() => updateBookingStatus(session.id, 'declined')} disabled={updatingId === session.id}
                                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-                                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444' }}>
+                                style={{ background: 'rgba(188,90,72,0.1)', border: '1px solid rgba(188,90,72,0.2)', color: '#BC5A48' }}>
                                 <X size={14} /> Decline
                               </button>
                             </div>
@@ -687,39 +757,39 @@ export default function DashboardPage() {
                 {rescheduleRequestsForCoach.length > 0 && (
                   <section>
                     <div className="flex justify-between items-center mb-6">
-                      <h2 className="font-display text-3xl text-white">Reschedule Requests</h2>
-                      <span className="tag-badge" style={{ background: 'rgba(245,158,11,0.15)', color: '#F59E0B', borderColor: 'rgba(245,158,11,0.3)' }}>{rescheduleRequestsForCoach.length} pending</span>
+                      <h2 className="font-display text-3xl text-ink">Reschedule Requests</h2>
+                      <span className="tag-badge" style={{ background: 'rgba(199,154,87,0.15)', color: '#C79A57', borderColor: 'rgba(199,154,87,0.3)' }}>{rescheduleRequestsForCoach.length} pending</span>
                     </div>
                     <div className="space-y-4">
                       {rescheduleRequestsForCoach.map((session, i) => (
                         <motion.div key={session.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                          className="rounded-2xl p-6" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                          className="rounded-2xl p-6" style={{ background: 'rgba(199,154,87,0.06)', border: '1px solid rgba(199,154,87,0.2)' }}>
                           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-2">
-                                <RefreshCw size={16} style={{ color: '#F59E0B' }} />
-                                <h4 className="font-bold text-white">{session.player_name || 'Player'}</h4>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase" style={{ background: 'rgba(245,158,11,0.1)', color: '#F59E0B' }}>reschedule request</span>
+                                <RefreshCw size={16} style={{ color: '#C79A57' }} />
+                                <h4 className="font-bold text-ink">{session.player_name || 'Player'}</h4>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase" style={{ background: 'rgba(199,154,87,0.1)', color: '#C79A57' }}>reschedule request</span>
                               </div>
-                              <p className="text-sm mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                              <p className="text-sm mb-1" style={{ color: 'rgba(27,24,19,0.4)' }}>
                                 Original: {session.date} at {session.time_slot}
                               </p>
-                              <p className="text-sm font-bold" style={{ color: '#F59E0B' }}>
+                              <p className="text-sm font-bold" style={{ color: '#C79A57' }}>
                                 Requested: {session.reschedule_date} at {session.reschedule_time}
                               </p>
                               {session.reschedule_note && (
-                                <p className="text-xs mt-2 italic" style={{ color: 'rgba(255,255,255,0.35)' }}>"{session.reschedule_note}"</p>
+                                <p className="text-xs mt-2 italic" style={{ color: 'rgba(27,24,19,0.35)' }}>"{session.reschedule_note}"</p>
                               )}
                             </div>
                             <div className="flex gap-3 shrink-0">
                               <button onClick={() => acceptReschedule(session.id, session.reschedule_date, session.reschedule_time)} disabled={updatingId === session.id}
                                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-                                style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e' }}>
+                                style={{ background: 'rgba(94,140,90,0.15)', border: '1px solid rgba(94,140,90,0.3)', color: '#5E8C5A' }}>
                                 {updatingId === session.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Accept
                               </button>
                               <button onClick={() => declineReschedule(session.id)} disabled={updatingId === session.id}
                                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-                                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444' }}>
+                                style={{ background: 'rgba(188,90,72,0.1)', border: '1px solid rgba(188,90,72,0.2)', color: '#BC5A48' }}>
                                 <X size={14} /> Decline
                               </button>
                             </div>
@@ -730,30 +800,69 @@ export default function DashboardPage() {
                   </section>
                 )}
 
+                {coachWaitlist.length > 0 && (
+                  <section>
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="font-display text-3xl text-ink">Waitlist</h2>
+                      <span className="tag-badge">{coachWaitlist.length} waiting</span>
+                    </div>
+                    <div className="space-y-3">
+                      {coachWaitlist
+                        .slice()
+                        .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+                        .map((w) => (
+                        <div key={w.id} className="cg-card p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-bold text-ink">{w.player_name || 'Player'}</h4>
+                              {w.notified && <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: 'rgba(94,140,90,0.15)', color: 'var(--c-confirmed)' }}>Notified</span>}
+                            </div>
+                            <p className="text-sm" style={{ color: 'var(--ink-soft)' }}>{w.session_type} · {w.date} at {w.time_slot}</p>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            {!w.notified && (
+                              <button onClick={() => notifyWaitlist(w.id)} disabled={updatingId === w.id}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm transition-colors disabled:opacity-50"
+                                style={{ background: 'var(--black)', color: 'var(--paper)' }}>
+                                {updatingId === w.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Mark notified
+                              </button>
+                            )}
+                            <button onClick={() => leaveWaitlist(w.id)}
+                              className="px-4 py-2 rounded-full text-sm transition-colors hover:bg-[rgba(27,24,19,0.05)]"
+                              style={{ border: '1px solid var(--line-strong)', color: 'var(--ink-soft)' }}>
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
                 <section>
                   <div className="flex justify-between items-center mb-6">
-                    <h2 className="font-display text-3xl text-white">Confirmed Sessions</h2>
+                    <h2 className="font-display text-3xl text-ink">Confirmed Sessions</h2>
                     <span className="tag-badge">{upcomingCoachSessions.length} confirmed</span>
                   </div>
                   {upcomingCoachSessions.length > 0 ? (
                     <div className="space-y-4">
                       {upcomingCoachSessions.map((session, i) => (
                         <motion.div key={session.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                          className="glass-card rounded-2xl border border-white/5 p-6 flex flex-col sm:flex-row sm:items-center gap-6">
+                          className="glass-card rounded-2xl border border-[rgba(27,24,19,0.06)] p-6 flex flex-col sm:flex-row sm:items-center gap-6">
                           <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0"
-                            style={{ background: 'rgba(79,142,247,0.1)', border: '1px solid rgba(79,142,247,0.2)', color: '#4F8EF7' }}>
+                            style={{ background: 'rgba(27,24,19,0.1)', border: '1px solid rgba(27,24,19,0.2)', color: '#1B1813' }}>
                             <span className="text-[10px] font-bold uppercase">{session.date ? new Date(session.date).toLocaleString('default', { month: 'short' }) : '—'}</span>
                             <span className="text-xl font-bold leading-none">{session.date?.split('-')[2] || '—'}</span>
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-1">
-                              <h4 className="font-bold text-white text-lg">{session.player_name || 'Player'}</h4>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}>{session.skill_level}</span>
+                              <h4 className="font-bold text-ink text-lg">{session.player_name || 'Player'}</h4>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase" style={{ background: 'rgba(27,24,19,0.06)', color: 'rgba(27,24,19,0.4)' }}>{session.skill_level}</span>
                             </div>
-                            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>{session.session_type} · {session.date} at {session.time_slot}</p>
+                            <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>{session.session_type} · {session.date} at {session.time_slot}</p>
                           </div>
                           <div className="flex items-center gap-4 shrink-0">
-                            <p className="font-bold text-xl text-white">${session.total_price}</p>
+                            <p className="font-bold text-xl text-ink">${session.total_price}</p>
                             <button
                               onClick={() => {
                                 if (session.date && new Date(session.date + 'T23:59:59') > new Date()) {
@@ -762,8 +871,8 @@ export default function DashboardPage() {
                                 updateBookingStatus(session.id, 'completed');
                               }}
                               disabled={updatingId === session.id}
-                              className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all disabled:opacity-50"
-                              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}>
+                              className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-colors disabled:opacity-50 hover:bg-[rgba(27,24,19,0.1)]"
+                              style={{ background: 'rgba(27,24,19,0.06)', border: '1px solid rgba(27,24,19,0.16)', color: 'var(--ink-soft)' }}>
                               Mark Complete
                             </button>
                           </div>
@@ -771,20 +880,20 @@ export default function DashboardPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="glass-card rounded-3xl border border-dashed border-white/10 p-16 text-center">
-                      <Calendar size={40} className="mx-auto mb-4" style={{ color: 'rgba(255,255,255,0.1)' }} />
-                      <p className="font-bold mb-2 text-white">No confirmed sessions</p>
-                      <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Accepted bookings will appear here.</p>
+                    <div className="glass-card rounded-3xl border border-dashed border-[rgba(27,24,19,0.10)] p-16 text-center">
+                      <Calendar size={40} className="mx-auto mb-4" style={{ color: 'rgba(27,24,19,0.1)' }} />
+                      <p className="font-bold mb-2 text-ink">No confirmed sessions</p>
+                      <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>Accepted bookings will appear here.</p>
                     </div>
                   )}
                 </section>
 
                 {completedCoachSessions.length > 0 && (
                   <section>
-                    <h2 className="font-display text-3xl text-white mb-6">Session History</h2>
-                    <div className="glass-card rounded-3xl border border-white/10 overflow-hidden">
+                    <h2 className="font-display text-3xl text-ink mb-6">Session History</h2>
+                    <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] overflow-hidden">
                       <table className="w-full text-left">
-                        <thead className="bg-white/5 text-[10px] uppercase tracking-widest font-bold" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                        <thead className="bg-[rgba(27,24,19,0.04)] text-[10px] uppercase tracking-widest font-bold" style={{ color: 'rgba(27,24,19,0.3)' }}>
                           <tr>
                             <th className="px-6 py-4">Player</th>
                             <th className="px-6 py-4">Session</th>
@@ -792,13 +901,13 @@ export default function DashboardPage() {
                             <th className="px-6 py-4">Revenue</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5 text-sm">
+                        <tbody className="divide-y divide-[rgba(27,24,19,0.06)] text-sm">
                           {completedCoachSessions.map(row => (
-                            <tr key={row.id} className="hover:bg-white/5 transition-colors">
-                              <td className="px-6 py-4 font-medium text-white">{row.player_name || '—'}</td>
-                              <td className="px-6 py-4" style={{ color: 'rgba(255,255,255,0.4)' }}>{row.session_type}</td>
-                              <td className="px-6 py-4" style={{ color: 'rgba(255,255,255,0.4)' }}>{row.date}</td>
-                              <td className="px-6 py-4 font-bold" style={{ color: '#4F8EF7' }}>${row.total_price}</td>
+                            <tr key={row.id} className="hover:bg-[rgba(27,24,19,0.04)] transition-colors">
+                              <td className="px-6 py-4 font-medium text-ink">{row.player_name || '—'}</td>
+                              <td className="px-6 py-4" style={{ color: 'rgba(27,24,19,0.4)' }}>{row.session_type}</td>
+                              <td className="px-6 py-4" style={{ color: 'rgba(27,24,19,0.4)' }}>{row.date}</td>
+                              <td className="px-6 py-4 font-bold" style={{ color: '#1B1813' }}>${row.total_price}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -809,32 +918,103 @@ export default function DashboardPage() {
               </div>
 
               <div className="space-y-6">
-                <div className="rounded-3xl p-8 shadow-2xl" style={{ background: 'linear-gradient(135deg, #4F8EF7, #2563EB)', boxShadow: '0 20px 60px rgba(79,142,247,0.3)' }}>
-                  <div className="w-16 h-16 bg-white/20 rounded-2xl overflow-hidden flex items-center justify-center mb-6">
+                <div className="rounded-3xl p-8 shadow-2xl" style={{ background: 'var(--paper-warm)', boxShadow: '0 20px 60px rgba(27,24,19,0.3)' }}>
+                  <div className="w-16 h-16 bg-[rgba(27,24,19,0.06)] rounded-2xl overflow-hidden flex items-center justify-center mb-6">
                     {coachProfilePhoto ? (
                       <img src={coachProfilePhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
-                      <span className="text-2xl font-bold text-white">{user?.displayName?.charAt(0) || 'C'}</span>
+                      <span className="text-2xl font-bold text-ink">{user?.displayName?.charAt(0) || 'C'}</span>
                     )}
                   </div>
-                  <h3 className="font-display text-2xl text-white mb-1">{user?.displayName || 'Coach'}</h3>
-                  <p className="text-white/60 text-sm mb-6">{user?.email}</p>
+                  <h3 className="font-display text-2xl text-ink mb-1">{user?.displayName || 'Coach'}</h3>
+                  <p className="text-ink-soft text-sm mb-6">{user?.email}</p>
                   <div className="space-y-3">
-                    <Link to="/coach-edit-profile" className="flex items-center gap-2 bg-white/10 hover:bg-white/20 transition-all rounded-xl px-4 py-3 text-sm font-bold text-white border border-white/10">
+                    <Link to="/coach-edit-profile" className="flex items-center gap-2 bg-[rgba(27,24,19,0.05)] hover:bg-[rgba(27,24,19,0.06)] transition-all rounded-xl px-4 py-3 text-sm font-bold text-ink border border-[rgba(27,24,19,0.10)]">
                       <Edit size={16} /> Edit Profile
                     </Link>
-                    <Link to="/coach-availability" className="flex items-center gap-2 bg-white/10 hover:bg-white/20 transition-all rounded-xl px-4 py-3 text-sm font-bold text-white border border-white/10">
+                    <Link to="/coach-availability" className="flex items-center gap-2 bg-[rgba(27,24,19,0.05)] hover:bg-[rgba(27,24,19,0.06)] transition-all rounded-xl px-4 py-3 text-sm font-bold text-ink border border-[rgba(27,24,19,0.10)]">
                       <CalendarDays size={16} /> Set Availability
                     </Link>
-                    <Link to="/messages" className="flex items-center gap-2 bg-white/10 hover:bg-white/20 transition-all rounded-xl px-4 py-3 text-sm font-bold text-white border border-white/10">
+                    <Link to="/messages" className="flex items-center gap-2 bg-[rgba(27,24,19,0.05)] hover:bg-[rgba(27,24,19,0.06)] transition-all rounded-xl px-4 py-3 text-sm font-bold text-ink border border-[rgba(27,24,19,0.10)]">
                       <MessageSquare size={16} /> Messages
                     </Link>
                   </div>
                 </div>
 
-                <div className="glass-card rounded-3xl border border-white/10 p-8">
-                  <h3 className="font-display text-xl text-white mb-6 flex items-center gap-3">
-                    <BarChart2 size={20} style={{ color: '#4F8EF7' }} /> REVENUE
+                <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
+                  <h3 className="font-display text-xl text-ink mb-2 flex items-center gap-3">
+                    <Zap size={20} style={{ color: '#1B1813' }} /> PROFILE STRENGTH
+                  </h3>
+                  <div className="flex items-baseline gap-2 mb-3">
+                    <span className="font-display text-4xl" style={{ color: 'var(--ink)' }}>{profileStrength}%</span>
+                    <span className="text-sm" style={{ color: 'var(--ink-soft)' }}>complete</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full mb-5" style={{ background: 'rgba(27,24,19,0.08)' }}>
+                    <motion.div className="h-full rounded-full" style={{ background: 'var(--black)' }}
+                      initial={{ width: 0 }} animate={{ width: `${profileStrength}%` }} transition={{ ...SPRING, delay: 0.2 }} />
+                  </div>
+                  {topNudge ? (
+                    <>
+                      <div className="p-4 rounded-2xl mb-4" style={{ background: 'var(--paper-warm)', border: '1px solid var(--line)' }}>
+                        <p className="text-sm" style={{ color: 'var(--ink)' }}>
+                          <strong>Next:</strong> add your {topNudge.label.toLowerCase()}.
+                        </p>
+                        <p className="text-xs mt-1" style={{ color: 'var(--ink-soft)' }}>{topNudge.nudge}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {completenessItems.filter(i => !i.done).map(i => (
+                          <span key={i.label} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: 'var(--card-cream)', border: '1px solid var(--line-strong)', color: 'var(--ink-soft)' }}>
+                            {i.label}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2 mt-5">
+                        <Link to="/coach-edit-profile" className="btn-primary py-2 px-4 text-sm flex-1 justify-center">Complete profile</Link>
+                        {!completenessItems.find(i => i.label === 'Availability')?.done && (
+                          <Link to="/coach-availability" className="btn-secondary py-2 px-4 text-sm">Availability</Link>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 p-4 rounded-2xl" style={{ background: 'rgba(94,140,90,0.08)', border: '1px solid rgba(94,140,90,0.2)' }}>
+                      <CheckCircle2 size={18} style={{ color: 'var(--c-confirmed)' }} />
+                      <p className="text-sm" style={{ color: 'var(--ink)' }}>Your profile is complete — nice work.</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
+                  <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3">
+                    <TrendingUp size={20} style={{ color: '#1B1813' }} /> ANALYTICS
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3 mb-5">
+                    {[
+                      { label: 'Profile views', value: profileViews == null ? '—' : String(profileViews) },
+                      { label: 'View → booking', value: conversionRate == null ? '—' : `${conversionRate}%` },
+                      { label: 'Repeat clients', value: `${repeatRate}%` },
+                      { label: 'Total bookings', value: String(totalBookingsCount) },
+                    ].map(s => (
+                      <div key={s.label} className="rounded-2xl p-4" style={{ background: 'var(--paper-warm)', border: '1px solid var(--line)' }}>
+                        <p className="font-display text-3xl leading-none" style={{ color: 'var(--ink)' }}>{s.value}</p>
+                        <p className="text-[11px] uppercase tracking-wide mt-1.5" style={{ color: 'var(--ink-soft)' }}>{s.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs" style={{ color: 'var(--ink-faint)' }}>
+                    {profileViews && profileViews > 0
+                      ? `${totalBookingsCount} of ${profileViews} profile views turned into bookings.`
+                      : 'Views are counted as players open your profile.'}
+                  </p>
+                </div>
+
+                <MarketingToolkit
+                  coachName={user?.displayName || 'me'}
+                  profilePath={`/coaches/${MOCK_COACHES.find(c => c.user_id === user?.uid)?.id || user?.uid || ''}`}
+                />
+
+                <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
+                  <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3">
+                    <BarChart2 size={20} style={{ color: '#1B1813' }} /> REVENUE
                   </h3>
                   <div className="space-y-4 mb-6">
                     {[
@@ -844,15 +1024,15 @@ export default function DashboardPage() {
                       { label: 'Unique Players', value: uniquePlayers },
                     ].map(item => (
                       <div key={item.label} className="flex justify-between items-center">
-                        <span className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>{item.label}</span>
-                        <span className="font-bold text-white">{item.value}</span>
+                        <span className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>{item.label}</span>
+                        <span className="font-bold text-ink">{item.value}</span>
                       </div>
                     ))}
                   </div>
                   {sortedMonths.length > 0 && (
                     <>
-                      <div className="border-t border-white/8 pt-6">
-                        <p className="text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color: 'rgba(255,255,255,0.25)' }}>Monthly Breakdown</p>
+                      <div className="border-t border-[rgba(27,24,19,0.08)] pt-6">
+                        <p className="text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color: 'rgba(27,24,19,0.25)' }}>Monthly Breakdown</p>
                         <div className="space-y-3">
                           {sortedMonths.map(({ label, value }) => {
                             const maxVal = sortedMonths[0].value || 1;
@@ -860,17 +1040,17 @@ export default function DashboardPage() {
                             return (
                               <div key={label}>
                                 <div className="flex justify-between items-center mb-1.5">
-                                  <span className="text-xs font-bold" style={{ color: 'rgba(255,255,255,0.5)' }}>{label}</span>
-                                  <span className="text-xs font-bold" style={{ color: '#4F8EF7' }}>${value}</span>
+                                  <span className="text-xs font-bold" style={{ color: 'rgba(27,24,19,0.5)' }}>{label}</span>
+                                  <span className="text-xs font-bold" style={{ color: '#1B1813' }}>${value}</span>
                                 </div>
-                                <div className="w-full h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                                <div className="w-full h-1.5 rounded-full" style={{ background: 'rgba(27,24,19,0.06)' }}>
                                   <motion.div
                                     className="h-full rounded-full"
                                     initial={{ width: 0 }}
                                     whileInView={{ width: `${pct}%` }}
                                     viewport={{ once: true }}
                                     transition={{ ...SPRING, delay: 0.2 }}
-                                    style={{ background: 'linear-gradient(90deg, #4F8EF7, #7C3AED)' }}
+                                    style={{ background: '#16130E' }}
                                   />
                                 </div>
                               </div>
@@ -882,15 +1062,15 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                <div className="glass-card rounded-3xl border border-white/10 p-8">
-                  <h3 className="font-display text-xl text-white mb-6 flex items-center gap-3">
-                    <Trophy size={20} style={{ color: '#F59E0B' }} /> TIPS
+                <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
+                  <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3">
+                    <Trophy size={20} style={{ color: '#C79A57' }} /> TIPS
                   </h3>
                   <ul className="space-y-4 text-sm">
                     {['Keep your availability up to date', 'Accept bookings within 24 hours', 'Add certifications to your profile'].map((tip, i) => (
                       <li key={i} className="flex items-start gap-3">
-                        <CheckCircle2 size={16} className="mt-0.5 shrink-0" style={{ color: 'rgba(79,142,247,0.4)' }} />
-                        <span style={{ color: 'rgba(255,255,255,0.45)' }}>{tip}</span>
+                        <CheckCircle2 size={16} className="mt-0.5 shrink-0" style={{ color: 'rgba(27,24,19,0.4)' }} />
+                        <span style={{ color: 'rgba(27,24,19,0.45)' }}>{tip}</span>
                       </li>
                     ))}
                   </ul>
@@ -906,14 +1086,14 @@ export default function DashboardPage() {
   // ─── PLAYER DASHBOARD ──────────────────────────────────────────────
   return (
     <PageTransition>
-      <div className="min-h-screen pt-20" style={{ background: '#0A0F1E' }}>
-        <div className="relative overflow-hidden" style={{ background: 'rgba(79,142,247,0.05)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(79,142,247,0.05) 0%, transparent 70%)' }} />
+      <div className="min-h-screen pt-20" style={{ background: '#F6F4EF' }}>
+        <div className="relative overflow-hidden" style={{ background: 'rgba(27,24,19,0.05)', borderBottom: '1px solid rgba(27,24,19,0.06)' }}>
+          <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(27,24,19,0.05) 0%, transparent 70%)' }} />
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-4" style={{ color: 'rgba(255,255,255,0.3)' }}>Player Dashboard</p>
-              <h1 className="font-display text-5xl md:text-6xl text-white mb-3">Welcome back, {user?.displayName?.split(' ')[0] || 'Player'}</h1>
-              <p style={{ color: 'rgba(255,255,255,0.45)' }} className="text-lg">Your development journey is in full swing.</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-4" style={{ color: 'rgba(27,24,19,0.3)' }}>Player Dashboard</p>
+              <h1 className="font-display text-5xl md:text-6xl text-ink mb-3">Welcome back, {user?.displayName?.split(' ')[0] || 'Player'}</h1>
+              <p style={{ color: 'rgba(27,24,19,0.45)' }} className="text-lg">Your development journey is in full swing.</p>
             </motion.div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12" style={{ perspective: '1000px' }}>
               {[
@@ -927,13 +1107,13 @@ export default function DashboardPage() {
                   initial={{ opacity: 0, rotateY: 90, scale: 0.9 }}
                   animate={{ opacity: 1, rotateY: 0, scale: 1 }}
                   transition={{ ...SPRING, delay: i * 0.1 }}
-                  whileHover={{ y: -4, boxShadow: '0 20px 60px rgba(79,142,247,0.2)' }}
-                  className="glass-card rounded-2xl p-6 border border-white/10 cursor-default"
+                  whileHover={{ y: -4, boxShadow: '0 20px 60px rgba(27,24,19,0.2)' }}
+                  className="glass-card rounded-2xl p-6 border border-[rgba(27,24,19,0.10)] cursor-default"
                   style={{ transformStyle: 'preserve-3d' }}
                 >
-                  <div className="mb-3" style={{ color: '#4F8EF7' }}>{stat.icon}</div>
-                  <p className="text-2xl font-bold text-white"><AnimatedCounter to={stat.value} /></p>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mt-2" style={{ color: 'rgba(255,255,255,0.2)' }}>{stat.label}</p>
+                  <div className="mb-3" style={{ color: '#1B1813' }}>{stat.icon}</div>
+                  <p className="text-2xl font-bold text-ink"><AnimatedCounter to={stat.value} /></p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mt-2" style={{ color: 'rgba(27,24,19,0.2)' }}>{stat.label}</p>
                 </motion.div>
               ))}
             </div>
@@ -943,19 +1123,19 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
             <div className="lg:col-span-2 space-y-12">
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-3xl border border-white/10 p-8">
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
                 <div className="flex flex-col sm:flex-row gap-8 items-center sm:items-start">
                   {/* SVG ring — animates from 0 to completionPct */}
                   <div className="relative w-36 h-36 shrink-0">
                     <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
                       <defs>
                         <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%"  stopColor="#4F8EF7" />
-                          <stop offset="55%" stopColor="#7C3AED" />
-                          <stop offset="100%" stopColor="#06B6D4" />
+                          <stop offset="0%"  stopColor="#1B1813" />
+                          <stop offset="55%" stopColor="#8A7BA8" />
+                          <stop offset="100%" stopColor="#7C95AD" />
                         </linearGradient>
                       </defs>
-                      <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="9" />
+                      <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(27,24,19,0.06)" strokeWidth="9" />
                       <motion.circle
                         cx="60" cy="60" r="52" fill="none"
                         stroke="url(#ringGradient)"
@@ -966,28 +1146,28 @@ export default function DashboardPage() {
                         initial={{ strokeDashoffset: 1 }}
                         animate={{ strokeDashoffset: 1 - (completionPct / 100) }}
                         transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
-                        style={{ filter: 'drop-shadow(0 0 8px rgba(79,142,247,0.45))' }}
+                        style={{ filter: 'drop-shadow(0 0 8px rgba(27,24,19,0.45))' }}
                       />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="font-display text-4xl leading-none" style={{ color: '#4F8EF7' }}>
+                      <span className="font-display text-4xl leading-none" style={{ color: '#1B1813' }}>
                         <AnimatedCounter to={completionPct} suffix="%" />
                       </span>
-                      <span className="text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>Complete</span>
+                      <span className="text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color: 'rgba(27,24,19,0.35)' }}>Complete</span>
                     </div>
                     {/* pulsing aura behind ring */}
                     <motion.div
                       aria-hidden
                       className="absolute inset-0 rounded-full pointer-events-none"
-                      style={{ background: 'radial-gradient(circle, rgba(79,142,247,0.25) 0%, transparent 60%)' }}
+                      style={{ background: 'radial-gradient(circle, rgba(27,24,19,0.25) 0%, transparent 60%)' }}
                       animate={{ opacity: [0.4, 0.9, 0.4], scale: [0.92, 1.05, 0.92] }}
                       transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut' }}
                     />
                   </div>
 
                   <div className="flex-1 w-full">
-                    <h3 className="font-display text-2xl text-white mb-1">Profile Completion</h3>
-                    <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    <h3 className="font-display text-2xl text-ink mb-1">Profile Completion</h3>
+                    <p className="text-sm mb-6" style={{ color: 'rgba(27,24,19,0.4)' }}>
                       {nextStep ? `Next: ${nextStep.label}` : 'Profile complete!'}
                     </p>
                     <motion.div
@@ -1005,8 +1185,8 @@ export default function DashboardPage() {
                           }}
                           className="flex items-center gap-3 text-sm"
                         >
-                          <CheckCircle2 size={16} style={{ color: item.done ? '#4F8EF7' : 'rgba(255,255,255,0.1)' }} fill={item.done ? '#4F8EF7' : 'none'} />
-                          <span style={{ color: item.done ? 'white' : 'rgba(255,255,255,0.3)' }} className={item.done ? 'font-medium' : ''}>{item.label}</span>
+                          <CheckCircle2 size={16} style={{ color: item.done ? '#1B1813' : 'rgba(27,24,19,0.1)' }} fill={item.done ? '#1B1813' : 'none'} />
+                          <span style={{ color: item.done ? 'var(--ink)' : 'rgba(27,24,19,0.4)' }} className={item.done ? 'font-medium' : ''}>{item.label}</span>
                         </motion.div>
                       ))}
                     </motion.div>
@@ -1016,7 +1196,7 @@ export default function DashboardPage() {
 
               <section>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="font-display text-3xl text-white">Upcoming Sessions</h2>
+                  <h2 className="font-display text-3xl text-ink">Upcoming Sessions</h2>
                   <Link to="/coaches" className="btn-primary py-2 px-6 text-xs flex items-center gap-2"><Plus size={14} /> Book New</Link>
                 </div>
                 {upcomingSessions.length > 0 ? (
@@ -1033,9 +1213,9 @@ export default function DashboardPage() {
                             transition={{ ...SPRING, delay: i * 0.05 }}
                             className="glass-card rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center gap-6 transition-all relative"
                             style={{
-                              border: isToday ? '1px solid rgba(245,158,11,0.5)' : '1px solid rgba(255,255,255,0.05)',
-                              boxShadow: isToday ? '0 0 28px rgba(245,158,11,0.25), inset 0 0 30px rgba(245,158,11,0.06)' : 'none',
-                              background: isToday ? 'linear-gradient(135deg, rgba(245,158,11,0.08), rgba(255,255,255,0.03))' : undefined,
+                              border: isToday ? '1px solid rgba(199,154,87,0.5)' : '1px solid rgba(27,24,19,0.05)',
+                              boxShadow: isToday ? '0 0 28px rgba(199,154,87,0.25), inset 0 0 30px rgba(199,154,87,0.06)' : 'none',
+                              background: isToday ? 'linear-gradient(135deg, rgba(199,154,87,0.08), rgba(27,24,19,0.03))' : undefined,
                             }}
                           >
                             {isToday && (
@@ -1043,26 +1223,38 @@ export default function DashboardPage() {
                                 aria-label="Today"
                                 className="absolute -top-2 -right-2 flex items-center gap-1 px-2.5 py-1 rounded-full z-10"
                                 style={{
-                                  background: 'linear-gradient(135deg, #F59E0B, #D97706)',
-                                  border: '1px solid rgba(245,158,11,0.6)',
-                                  boxShadow: '0 4px 16px rgba(245,158,11,0.45)',
+                                  background: 'var(--clay)',
+                                  border: '1px solid rgba(199,154,87,0.6)',
+                                  boxShadow: '0 4px 16px rgba(199,154,87,0.45)',
                                 }}
                                 animate={{ scale: [1, 1.06, 1] }}
                                 transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
                               >
-                                <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                                <span className="text-[9px] font-extrabold uppercase tracking-widest text-white">Today</span>
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--ink)' }} />
+                                <span className="text-[9px] font-extrabold uppercase tracking-widest text-ink">Today</span>
                               </motion.span>
                             )}
-                          <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 border border-white/10" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                          <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 border border-[rgba(27,24,19,0.10)]" style={{ background: 'rgba(27,24,19,0.05)' }}>
                             {coachAvatar ? <img src={coachAvatar} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : (
-                              <div className="w-full h-full flex items-center justify-center font-bold" style={{ color: '#4F8EF7' }}>{getCoachName(session.coach_id).charAt(0)}</div>
+                              <div className="w-full h-full flex items-center justify-center font-bold" style={{ color: '#1B1813' }}>{getCoachName(session.coach_id).charAt(0)}</div>
                             )}
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-bold text-white text-lg mb-1">{session.session_type}</h4>
-                            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>with {getCoachName(session.coach_id)} · <span className="capitalize">{getCoachSpecialty(session.coach_id)}</span></p>
-                            <p className="text-xs font-bold mt-1" style={{ color: '#4F8EF7' }}>{session.date} at {session.time_slot}</p>
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <h4 className="font-bold text-ink text-lg">{session.session_type}</h4>
+                              {session.location_mode && (
+                                <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: 'var(--paper-warm)', color: 'var(--ink-soft)', border: '1px solid var(--line)' }}>
+                                  {LOCATION_MODE_META[session.location_mode as LocationMode]?.short || session.location_mode}
+                                </span>
+                              )}
+                              {session.is_recurring && (
+                                <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={{ background: 'var(--paper-warm)', color: 'var(--ink-soft)', border: '1px solid var(--line)' }}>
+                                  <RefreshCw size={9} /> Weekly
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>with {getCoachName(session.coach_id)} · <span className="capitalize">{getCoachSpecialty(session.coach_id)}</span></p>
+                            <p className="text-xs font-bold mt-1" style={{ color: '#1B1813' }}>{session.date} at {session.time_slot}</p>
                           </div>
                           <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
                             {session.status === 'confirmed' && (() => {
@@ -1082,23 +1274,23 @@ export default function DashboardPage() {
                               ) : null;
                             })()}
                             <a href={generateCalendarLink(session, getCoachName(session.coach_id))} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-colors rounded-xl px-4 py-2 hover:bg-white/5"
-                              style={{ color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-colors rounded-xl px-4 py-2 hover:bg-[rgba(27,24,19,0.04)]"
+                              style={{ color: 'rgba(27,24,19,0.4)', border: '1px solid rgba(27,24,19,0.08)' }}>
                               <ExternalLink size={12} /> Calendar
                             </a>
                             <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border"
                               style={{
-                                color: session.status === 'confirmed' ? '#22c55e' : session.status === 'reschedule_requested' ? '#F59E0B' : '#4F8EF7',
-                                background: session.status === 'confirmed' ? 'rgba(34,197,94,0.1)' : session.status === 'reschedule_requested' ? 'rgba(245,158,11,0.1)' : 'rgba(79,142,247,0.1)',
-                                borderColor: session.status === 'confirmed' ? 'rgba(34,197,94,0.2)' : session.status === 'reschedule_requested' ? 'rgba(245,158,11,0.2)' : 'rgba(79,142,247,0.2)',
+                                color: session.status === 'confirmed' ? '#5E8C5A' : session.status === 'reschedule_requested' ? '#C79A57' : '#1B1813',
+                                background: session.status === 'confirmed' ? 'rgba(94,140,90,0.1)' : session.status === 'reschedule_requested' ? 'rgba(199,154,87,0.1)' : 'rgba(27,24,19,0.1)',
+                                borderColor: session.status === 'confirmed' ? 'rgba(94,140,90,0.2)' : session.status === 'reschedule_requested' ? 'rgba(199,154,87,0.2)' : 'rgba(27,24,19,0.2)',
                               }}>
                               {session.status === 'reschedule_requested' ? 'Reschedule Req.' : session.status}
                             </span>
                             {session.status === 'confirmed' && (
                               <button
                                 onClick={() => setRescheduleSession(session)}
-                                className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all hover:bg-white/5"
-                                style={{ color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all hover:bg-[rgba(27,24,19,0.04)]"
+                                style={{ color: 'rgba(27,24,19,0.4)', border: '1px solid rgba(27,24,19,0.08)' }}>
                                 <RefreshCw size={11} /> Reschedule
                               </button>
                             )}
@@ -1106,8 +1298,8 @@ export default function DashboardPage() {
                               <button
                                 onClick={() => cancelBooking(session.id)}
                                 disabled={updatingId === session.id}
-                                className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border transition-all hover:bg-red-500/10 disabled:opacity-40"
-                                style={{ color: 'rgba(239,68,68,0.7)', borderColor: 'rgba(239,68,68,0.2)' }}
+                                className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border transition-all hover:bg-[rgba(188,90,72,0.1)] disabled:opacity-40"
+                                style={{ color: 'rgba(188,90,72,0.7)', borderColor: 'rgba(188,90,72,0.2)' }}
                               >
                                 {updatingId === session.id ? '...' : 'Cancel'}
                               </button>
@@ -1119,10 +1311,10 @@ export default function DashboardPage() {
                     })}
                   </div>
                 ) : (
-                  <div className="glass-card rounded-3xl border border-dashed border-white/10 p-16 text-center">
-                    <Calendar size={40} className="mx-auto mb-4" style={{ color: 'rgba(255,255,255,0.1)' }} />
-                    <p className="font-bold mb-2 text-white">No upcoming sessions</p>
-                    <p className="text-sm mb-8" style={{ color: 'rgba(255,255,255,0.4)' }}>Book your first session with an elite specialist.</p>
+                  <div className="glass-card rounded-3xl border border-dashed border-[rgba(27,24,19,0.10)] p-16 text-center">
+                    <Calendar size={40} className="mx-auto mb-4" style={{ color: 'rgba(27,24,19,0.1)' }} />
+                    <p className="font-bold mb-2 text-ink">No upcoming sessions</p>
+                    <p className="text-sm mb-8" style={{ color: 'rgba(27,24,19,0.4)' }}>Book your first session with an elite specialist.</p>
                     <Link to="/coaches" className="btn-primary py-2 px-8 text-sm">Browse Coaches</Link>
                   </div>
                 )}
@@ -1131,7 +1323,7 @@ export default function DashboardPage() {
               {/* Session History with Leave Review */}
               {pastSessions.length > 0 && (
                 <section>
-                  <h2 className="font-display text-3xl text-white mb-6">Session History</h2>
+                  <h2 className="font-display text-3xl text-ink mb-6">Session History</h2>
                   <div className="space-y-4">
                     {pastSessions.map((row, i) => {
                       const alreadyReviewed = reviewedBookingIds.has(row.id);
@@ -1139,26 +1331,26 @@ export default function DashboardPage() {
                         <div key={row.id} className="relative rounded-2xl">
                           <GlowingEffect disabled={false} spread={30} borderWidth={1} proximity={50} />
                           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                          className="glass-card rounded-2xl border border-white/5 p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+                          className="glass-card rounded-2xl border border-[rgba(27,24,19,0.06)] p-6 flex flex-col sm:flex-row sm:items-center gap-4">
                           <div className="flex-1">
-                            <h4 className="font-bold text-white mb-1">{getCoachName(row.coach_id)}</h4>
-                            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>{row.session_type} · {row.date}</p>
+                            <h4 className="font-bold text-ink mb-1">{getCoachName(row.coach_id)}</h4>
+                            <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>{row.session_type} · {row.date}</p>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
                             <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase border"
-                              style={{ color: '#22c55e', background: 'rgba(34,197,94,0.1)', borderColor: 'rgba(34,197,94,0.2)' }}>
+                              style={{ color: '#5E8C5A', background: 'rgba(94,140,90,0.1)', borderColor: 'rgba(94,140,90,0.2)' }}>
                               {row.status}
                             </span>
                             {alreadyReviewed ? (
                               <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl"
-                                style={{ color: '#F59E0B', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)' }}>
-                                <Star size={11} fill="#F59E0B" /> Reviewed
+                                style={{ color: '#C79A57', background: 'rgba(199,154,87,0.08)', border: '1px solid rgba(199,154,87,0.15)' }}>
+                                <Star size={11} fill="#C79A57" /> Reviewed
                               </span>
                             ) : (
                               <button
                                 onClick={() => setReviewSession(row)}
-                                className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all hover:bg-white/10"
-                                style={{ color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all hover:bg-[rgba(27,24,19,0.05)]"
+                                style={{ color: 'rgba(27,24,19,0.5)', border: '1px solid rgba(27,24,19,0.1)' }}>
                                 <Star size={11} /> Leave Review
                               </button>
                             )}
@@ -1173,63 +1365,87 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-6">
-              <div className="glass-card rounded-3xl border border-white/10 p-8">
-                <h3 className="font-display text-xl text-white mb-6 flex items-center gap-3"><Star size={20} fill="#F59E0B" style={{ color: '#F59E0B' }} />SAVED COACHES</h3>
+              {myWaitlist.length > 0 && (
+                <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
+                  <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3"><Clock size={20} style={{ color: '#1B1813' }} />ON THE WAITLIST</h3>
+                  <div className="space-y-4">
+                    {myWaitlist.map((w) => (
+                      <div key={w.id} className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-ink truncate">{w.coach_name || 'Coach'}</p>
+                          <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-soft)' }}>
+                            {w.session_type} · {w.date} at {w.time_slot}
+                            {w.notified && <span style={{ color: 'var(--c-confirmed)' }}> · spot may be open!</span>}
+                          </p>
+                        </div>
+                        <button onClick={() => leaveWaitlist(w.id)}
+                          className="text-[10px] font-bold uppercase tracking-widest shrink-0 transition-colors hover:text-[var(--ink)]"
+                          style={{ color: 'var(--ink-faint)' }}>
+                          Leave
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
+                <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3"><Star size={20} fill="#C79A57" style={{ color: '#C79A57' }} />SAVED COACHES</h3>
                 {favorites.length > 0 ? (
                   <div className="space-y-5">
                     {favorites.map(fav => (
                       <div key={fav.id} className="flex items-center justify-between group">
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-2xl overflow-hidden border border-white/10" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                          <div className="w-12 h-12 rounded-2xl overflow-hidden border border-[rgba(27,24,19,0.10)]" style={{ background: 'rgba(27,24,19,0.05)' }}>
                             {fav.coach.avatar_url ? <img src={fav.coach.avatar_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : (
-                              <div className="w-full h-full flex items-center justify-center text-sm font-bold" style={{ color: '#4F8EF7' }}>{fav.coach.name?.charAt(0)}</div>
+                              <div className="w-full h-full flex items-center justify-center text-sm font-bold" style={{ color: '#1B1813' }}>{fav.coach.name?.charAt(0)}</div>
                             )}
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-white">{fav.coach.name}</p>
-                            <p className="text-[10px] uppercase tracking-widest mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>{fav.coach.specialty}</p>
+                            <p className="text-sm font-bold text-ink">{fav.coach.name}</p>
+                            <p className="text-[10px] uppercase tracking-widest mt-1" style={{ color: 'rgba(27,24,19,0.3)' }}>{fav.coach.specialty}</p>
                           </div>
                         </div>
-                        <Link to={`/coaches/${fav.coach.id}`} className="text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all" style={{ color: '#4F8EF7' }}>View →</Link>
+                        <Link to={`/coaches/${fav.coach.id}`} className="text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all" style={{ color: '#1B1813' }}>View →</Link>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="text-center py-8">
-                    <Heart size={32} className="mx-auto mb-4" style={{ color: 'rgba(255,255,255,0.1)' }} />
-                    <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>No saved coaches yet.</p>
-                    <Link to="/coaches" className="text-xs font-bold uppercase tracking-widest" style={{ color: '#4F8EF7' }}>Browse coaches →</Link>
+                    <Heart size={32} className="mx-auto mb-4" style={{ color: 'rgba(27,24,19,0.1)' }} />
+                    <p className="text-sm mb-4" style={{ color: 'rgba(27,24,19,0.4)' }}>No saved coaches yet.</p>
+                    <Link to="/coaches" className="text-xs font-bold uppercase tracking-widest" style={{ color: '#1B1813' }}>Browse coaches →</Link>
                   </div>
                 )}
               </div>
 
-              <div className="glass-card rounded-3xl border border-white/10 p-6">
+              <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-6">
                 <Link to="/messages" className="flex items-center gap-3 w-full">
-                  <MessageSquare size={20} style={{ color: '#4F8EF7' }} />
+                  <MessageSquare size={20} style={{ color: '#1B1813' }} />
                   <div>
-                    <p className="font-bold text-white text-sm">Messages</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Chat with your coaches</p>
+                    <p className="font-bold text-ink text-sm">Messages</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'rgba(27,24,19,0.35)' }}>Chat with your coaches</p>
                   </div>
                 </Link>
               </div>
 
-              <div className="glass-card rounded-3xl border border-white/10 p-8">
-                <h3 className="font-display text-xl text-white mb-6 flex items-center gap-3"><Target size={20} style={{ color: '#4F8EF7' }} />BY SPECIALTY</h3>
+              <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
+                <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3"><Target size={20} style={{ color: '#1B1813' }} />BY SPECIALTY</h3>
                 <div className="space-y-2">
                   {['hitting', 'pitching', 'fielding', 'strength'].map(spec => (
-                    <Link key={spec} to={`/coaches?specialty=${spec}`} className="flex items-center justify-between p-4 rounded-2xl hover:bg-white/5 transition-all group border border-transparent hover:border-white/5">
-                      <span className="text-sm font-bold capitalize" style={{ color: 'rgba(255,255,255,0.5)' }}>{spec}</span>
-                      <ChevronRight size={16} style={{ color: 'rgba(255,255,255,0.2)' }} />
+                    <Link key={spec} to={`/coaches?specialty=${spec}`} className="flex items-center justify-between p-4 rounded-2xl hover:bg-[rgba(27,24,19,0.04)] transition-all group border border-transparent hover:border-[rgba(27,24,19,0.06)]">
+                      <span className="text-sm font-bold capitalize" style={{ color: 'rgba(27,24,19,0.5)' }}>{spec}</span>
+                      <ChevronRight size={16} style={{ color: 'rgba(27,24,19,0.2)' }} />
                     </Link>
                   ))}
                 </div>
               </div>
 
-              <div className="rounded-3xl p-8 shadow-2xl" style={{ background: 'linear-gradient(135deg, #4F8EF7, #2563EB)', boxShadow: '0 20px 60px rgba(79,142,247,0.25)' }}>
-                <TrendingUp size={32} className="mb-6 text-white/40" />
-                <h3 className="font-display text-2xl text-white mb-3">Ready to level up?</h3>
-                <p className="text-white/60 text-sm mb-8 leading-relaxed">Book a session with an elite specialist today.</p>
-                <Link to="/coaches" className="bg-white font-bold py-4 px-6 rounded-2xl text-sm flex items-center justify-center gap-2 hover:bg-white/90 transition-all uppercase tracking-widest" style={{ color: '#2563EB' }}>
+              <div className="rounded-3xl p-8 shadow-2xl" style={{ background: 'var(--paper-warm)', boxShadow: '0 20px 60px rgba(27,24,19,0.25)' }}>
+                <TrendingUp size={32} className="mb-6 text-ink-faint" />
+                <h3 className="font-display text-2xl text-ink mb-3">Ready to level up?</h3>
+                <p className="text-ink-soft text-sm mb-8 leading-relaxed">Book a session with an elite specialist today.</p>
+                <Link to="/coaches" className="bg-white font-bold py-4 px-6 rounded-2xl text-sm flex items-center justify-center gap-2 hover:bg-white/90 transition-all uppercase tracking-widest" style={{ color: '#1B1813' }}>
                   Browse Marketplace <ChevronRight size={18} />
                 </Link>
               </div>

@@ -2,6 +2,13 @@ export type UserRole = 'player' | 'coach' | 'admin';
 export type Specialty = 'hitting' | 'pitching' | 'fielding' | 'strength';
 export type SkillLevel = 'beginner' | 'developing' | 'competitive';
 export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'declined' | 'reschedule_requested';
+export type LocationMode = 'facility' | 'travel' | 'virtual';
+
+export interface LocationModes {
+  facility?: boolean;
+  travel?: boolean;
+  virtual?: boolean;
+}
 
 export interface UserProfile {
   uid: string;
@@ -43,12 +50,28 @@ export interface CoachProfile {
   venmo_handle?: string;
   video_url?: string;
   packages?: SessionPackage[];
+  // ── Scheduling & booking depth ──
+  instant_book?: boolean;            // true → bookings auto-confirm
+  location_modes?: LocationModes;    // which session locations the coach offers
+  travel_radius_miles?: number;      // optional, for "travels to you"
+  buffer_minutes?: number;           // rest/travel gap enforced between sessions
+  timezone?: string;                 // IANA tz, e.g. "America/Los_Angeles"
+  // ── Supply-side tools ──
+  promo_codes?: PromoCode[];
+  academy_name?: string;             // facility / academy this coach belongs to
 }
 
 export interface SessionPackage {
   sessions: number;
   discount_pct: number;
   label: string;
+}
+
+export interface PromoCode {
+  code: string;
+  type: 'percent' | 'amount';
+  value: number;
+  active: boolean;
 }
 
 export interface PlayerProfile {
@@ -77,6 +100,26 @@ export interface Booking {
   reminder_sent_24h?: boolean;
   session_count?: number;
   is_package?: boolean;
+  // ── Scheduling & booking depth ──
+  location_mode?: LocationMode;
+  recurring_group_id?: string;   // links sessions in a standing/recurring series
+  is_recurring?: boolean;
+  timezone?: string;
+  promo_code?: string;
+  discount_amount?: number;
+}
+
+export interface WaitlistEntry {
+  id: string;
+  coach_id: string;
+  player_id: string;
+  player_name?: string;
+  coach_name?: string;
+  date: string;
+  time_slot: string;
+  session_type: string;
+  created_at: any;
+  notified?: boolean;
 }
 
 export interface Review {

@@ -26,14 +26,14 @@ function TypingDots() {
     >
       <div
         className="px-4 py-3 rounded-2xl rounded-bl-sm flex items-center gap-1.5"
-        style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ background: 'rgba(27,24,19,0.07)', border: '1px solid rgba(27,24,19,0.08)' }}
         aria-label="Partner is typing"
       >
         {[0, 1, 2].map(i => (
           <motion.span
             key={i}
             className="block w-1.5 h-1.5 rounded-full"
-            style={{ background: '#4F8EF7' }}
+            style={{ background: '#1B1813' }}
             animate={prefersReduced ? {} : { y: [0, -4, 0], opacity: [0.35, 1, 0.35] }}
             transition={{ duration: 1.0, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
           />
@@ -234,29 +234,29 @@ export default function MessagesPage() {
   );
 
   if (!user) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#0A0F1E' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#F6F4EF' }}>
       <div className="text-center">
-        <p className="text-white font-bold mb-4">Please log in to view messages.</p>
+        <p className="text-ink font-bold mb-4">Please log in to view messages.</p>
         <Link to="/auth" className="btn-primary">Log In</Link>
       </div>
     </div>
   );
 
   if (!userRole) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#0A0F1E' }}>
-      <Loader2 className="animate-spin" size={36} style={{ color: '#4F8EF7' }} />
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#F6F4EF' }}>
+      <Loader2 className="animate-spin" size={36} style={{ color: '#1B1813' }} />
     </div>
   );
 
   return (
     <PageTransition>
-      <div className="min-h-screen pt-20" style={{ background: '#0A0F1E' }}>
+      <div className="min-h-screen pt-20" style={{ background: '#F6F4EF' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
           {/* Header */}
           <div className="mb-8">
-            <h1 className="font-display text-4xl text-white">Messages</h1>
-            <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <h1 className="font-display text-4xl text-ink">Messages</h1>
+            <p className="text-sm mt-1" style={{ color: 'rgba(27,24,19,0.4)' }}>
               {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
             </p>
           </div>
@@ -265,19 +265,19 @@ export default function MessagesPage() {
 
             {/* Conversation List */}
             <div className="md:col-span-1 rounded-3xl overflow-hidden flex flex-col"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              style={{ background: 'rgba(27,24,19,0.03)', border: '1px solid rgba(27,24,19,0.06)' }}>
 
               {/* Search */}
-              <div className="p-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="p-4" style={{ borderBottom: '1px solid rgba(27,24,19,0.06)' }}>
                 <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'rgba(255,255,255,0.3)' }} />
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'rgba(27,24,19,0.3)' }} />
                   <input
                     type="text"
                     placeholder="Search conversations..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full rounded-xl py-2 pl-8 pr-3 text-xs text-white focus:outline-none"
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}
+                    className="w-full rounded-xl py-2 pl-8 pr-3 text-xs text-ink focus:outline-none"
+                    style={{ background: 'rgba(27,24,19,0.06)', border: '1px solid rgba(27,24,19,0.08)' }}
                   />
                 </div>
               </div>
@@ -286,13 +286,13 @@ export default function MessagesPage() {
               <div className="flex-1 overflow-y-auto">
                 {loading ? (
                   <div className="flex items-center justify-center py-12">
-                    <Loader2 className="animate-spin" size={24} style={{ color: '#4F8EF7' }} />
+                    <Loader2 className="animate-spin" size={24} style={{ color: '#1B1813' }} />
                   </div>
                 ) : filteredConversations.length === 0 ? (
                   <div className="text-center py-16 px-6">
-                    <MessageSquare size={32} className="mx-auto mb-4" style={{ color: 'rgba(255,255,255,0.1)' }} />
-                    <p className="text-sm font-bold text-white mb-2">No messages yet</p>
-                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    <MessageSquare size={32} className="mx-auto mb-4" style={{ color: 'rgba(27,24,19,0.1)' }} />
+                    <p className="text-sm font-bold text-ink mb-2">No messages yet</p>
+                    <p className="text-xs" style={{ color: 'rgba(27,24,19,0.3)' }}>
                       {userRole === 'player' ? 'Message a coach from their profile page.' : 'Players will message you from your profile.'}
                     </p>
                     {userRole === 'player' && (
@@ -317,37 +317,37 @@ export default function MessagesPage() {
                             hidden: { opacity: 0, x: prefersReduced ? 0 : -20 },
                             visible: { opacity: 1, x: 0, transition: { ...SPRING } },
                           }}
-                          whileHover={{ background: isActive ? 'rgba(79,142,247,0.12)' : 'rgba(255,255,255,0.04)' }}
+                          whileHover={{ background: isActive ? 'rgba(27,24,19,0.12)' : 'rgba(27,24,19,0.04)' }}
                           onClick={() => navigate(`/messages/${convo.id}`)}
                           className="w-full text-left p-4 transition-colors"
                           style={{
-                            background: isActive ? 'rgba(79,142,247,0.1)' : 'transparent',
-                            borderLeft: isActive ? '2px solid #4F8EF7' : '2px solid transparent',
-                            borderBottom: '1px solid rgba(255,255,255,0.04)',
+                            background: isActive ? 'rgba(27,24,19,0.1)' : 'transparent',
+                            borderLeft: isActive ? '2px solid #1B1813' : '2px solid transparent',
+                            borderBottom: '1px solid rgba(27,24,19,0.04)',
                           }}
                         >
                           <div className="flex items-center gap-3">
                             {/* Avatar */}
                             <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 font-bold text-sm"
-                              style={{ background: 'rgba(79,142,247,0.15)', color: '#4F8EF7' }}>
+                              style={{ background: 'rgba(27,24,19,0.15)', color: '#1B1813' }}>
                               {getOtherName(convo).charAt(0)}
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2">
-                                <p className="font-bold text-white text-sm truncate">{getOtherName(convo)}</p>
+                                <p className="font-bold text-ink text-sm truncate">{getOtherName(convo)}</p>
                                 {unread > 0 && (
                                   <motion.span
                                     initial={{ scale: 0 }}
                                     animate={{ scale: 1 }}
                                     transition={SPRING}
-                                    className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                                    style={{ background: '#4F8EF7', boxShadow: '0 0 12px rgba(79,142,247,0.6)' }}
+                                    className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-ink"
+                                    style={{ background: '#1B1813', boxShadow: '0 0 12px rgba(27,24,19,0.6)' }}
                                   >
                                     {unread}
                                   </motion.span>
                                 )}
                               </div>
-                              <p className="text-xs truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                              <p className="text-xs truncate mt-0.5" style={{ color: 'rgba(27,24,19,0.35)' }}>
                                 {convo.last_message || 'No messages yet'}
                               </p>
                             </div>
@@ -362,32 +362,32 @@ export default function MessagesPage() {
 
             {/* Chat Window */}
             <div className="md:col-span-2 rounded-3xl overflow-hidden flex flex-col"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              style={{ background: 'rgba(27,24,19,0.03)', border: '1px solid rgba(27,24,19,0.06)' }}>
 
               {!conversationId ? (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center">
-                    <MessageSquare size={48} className="mx-auto mb-4" style={{ color: 'rgba(255,255,255,0.08)' }} />
-                    <p className="font-bold text-white mb-2">Select a conversation</p>
-                    <p className="text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>Choose a conversation from the left to start messaging.</p>
+                    <MessageSquare size={48} className="mx-auto mb-4" style={{ color: 'rgba(27,24,19,0.08)' }} />
+                    <p className="font-bold text-ink mb-2">Select a conversation</p>
+                    <p className="text-sm" style={{ color: 'rgba(27,24,19,0.3)' }}>Choose a conversation from the left to start messaging.</p>
                   </div>
                 </div>
               ) : (
                 <>
                   {/* Chat Header */}
                   <div className="p-5 flex items-center gap-4 shrink-0"
-                    style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    style={{ borderBottom: '1px solid rgba(27,24,19,0.06)' }}>
                     <button onClick={() => navigate('/messages')} className="md:hidden p-2 rounded-xl"
-                      style={{ color: 'rgba(255,255,255,0.4)' }}>
+                      style={{ color: 'rgba(27,24,19,0.4)' }}>
                       <ArrowLeft size={18} />
                     </button>
                     <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold"
-                      style={{ background: 'rgba(79,142,247,0.15)', color: '#4F8EF7' }}>
+                      style={{ background: 'rgba(27,24,19,0.15)', color: '#1B1813' }}>
                       {activeConversation ? getOtherName(activeConversation).charAt(0) : '?'}
                     </div>
                     <div className="flex-1">
-                      <p className="font-bold text-white">{activeConversation ? getOtherName(activeConversation) : '...'}</p>
-                      <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      <p className="font-bold text-ink">{activeConversation ? getOtherName(activeConversation) : '...'}</p>
+                      <p className="text-xs" style={{ color: 'rgba(27,24,19,0.3)' }}>
                         {userRole === 'player' && activeConversation
                           ? (MOCK_COACHES.find(c => c.user_id === activeConversation.coach_id)?.specialty || '').charAt(0).toUpperCase() + (MOCK_COACHES.find(c => c.user_id === activeConversation.coach_id)?.specialty || '').slice(1) + ' Specialist'
                           : 'Player'}
@@ -407,7 +407,7 @@ export default function MessagesPage() {
                   <div className="flex-1 overflow-y-auto p-6 space-y-4">
                     {messages.length === 0 ? (
                       <div className="text-center py-12">
-                        <p className="text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                        <p className="text-sm" style={{ color: 'rgba(27,24,19,0.3)' }}>
                           No messages yet. Say hello!
                         </p>
                       </div>
@@ -425,9 +425,9 @@ export default function MessagesPage() {
                           <div key={msg.id}>
                             {showDivider && (
                               <div className="flex items-center gap-3 my-4">
-                                <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
-                                <span className="text-[10px] font-bold uppercase tracking-widest shrink-0" style={{ color: 'rgba(255,255,255,0.25)' }}>{dateLabel}</span>
-                                <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
+                                <div className="flex-1 h-px" style={{ background: 'rgba(27,24,19,0.07)' }} />
+                                <span className="text-[10px] font-bold uppercase tracking-widest shrink-0" style={{ color: 'rgba(27,24,19,0.25)' }}>{dateLabel}</span>
+                                <div className="flex-1 h-px" style={{ background: 'rgba(27,24,19,0.07)' }} />
                               </div>
                             )}
                             <motion.div
@@ -438,14 +438,14 @@ export default function MessagesPage() {
                             >
                               <div className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
                                 style={{
-                                  background: isMe ? '#4F8EF7' : 'rgba(255,255,255,0.07)',
-                                  color: isMe ? 'white' : 'rgba(255,255,255,0.85)',
-                                  border: isMe ? 'none' : '1px solid rgba(255,255,255,0.08)',
-                                  boxShadow: isMe ? '0 8px 22px rgba(79,142,247,0.25)' : '0 4px 16px rgba(0,0,0,0.25)',
+                                  background: isMe ? '#1B1813' : 'rgba(27,24,19,0.07)',
+                                  color: isMe ? 'white' : 'rgba(27,24,19,0.85)',
+                                  border: isMe ? 'none' : '1px solid rgba(27,24,19,0.08)',
+                                  boxShadow: isMe ? '0 8px 22px rgba(27,24,19,0.25)' : '0 4px 16px rgba(0,0,0,0.25)',
                                 }}>
                                 {msg.text}
-                                <p className={`text-[10px] mt-1 ${isMe ? 'text-white/60' : ''}`}
-                                  style={{ color: isMe ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.25)' }}>
+                                <p className={`text-[10px] mt-1 ${isMe ? 'text-ink-soft' : ''}`}
+                                  style={{ color: isMe ? 'rgba(27,24,19,0.6)' : 'rgba(27,24,19,0.25)' }}>
                                   {msgDate?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) || ''}
                                 </p>
                               </div>
@@ -461,7 +461,7 @@ export default function MessagesPage() {
                   </div>
 
                   {/* Input */}
-                  <div className="p-4 shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div className="p-4 shrink-0" style={{ borderTop: '1px solid rgba(27,24,19,0.06)' }}>
                     <motion.div
                       className="flex gap-3 items-center"
                       animate={inputFocused ? { scale: 1.005 } : { scale: 1 }}
@@ -470,8 +470,8 @@ export default function MessagesPage() {
                       <motion.div
                         className="flex-1 relative rounded-xl"
                         animate={inputFocused
-                          ? { boxShadow: '0 0 0 4px rgba(79,142,247,0.18), 0 0 28px rgba(79,142,247,0.20)' }
-                          : { boxShadow: '0 0 0 0 rgba(79,142,247,0)' }
+                          ? { boxShadow: '0 0 0 4px rgba(27,24,19,0.18), 0 0 28px rgba(27,24,19,0.20)' }
+                          : { boxShadow: '0 0 0 0 rgba(27,24,19,0)' }
                         }
                         transition={{ duration: 0.25 }}
                       >
@@ -483,10 +483,10 @@ export default function MessagesPage() {
                           onBlur={() => setInputFocused(false)}
                           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                           placeholder="Type a message..."
-                          className="w-full rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
+                          className="w-full rounded-xl px-4 py-3 text-sm text-ink focus:outline-none"
                           animate={inputFocused
-                            ? { paddingTop: 14, paddingBottom: 14, background: 'rgba(8,11,20,0.85)', borderColor: 'rgba(79,142,247,0.55)' }
-                            : { paddingTop: 12, paddingBottom: 12, background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)' }
+                            ? { paddingTop: 14, paddingBottom: 14, background: '#FFFFFF', borderColor: 'rgba(27,24,19,0.55)' }
+                            : { paddingTop: 12, paddingBottom: 12, background: 'rgba(27,24,19,0.06)', borderColor: 'rgba(27,24,19,0.10)' }
                           }
                           transition={SPRING}
                           style={{ border: '1px solid' }}
@@ -496,8 +496,8 @@ export default function MessagesPage() {
                         onClick={sendMessage}
                         disabled={!newMessage.trim() || sending}
                         className="w-12 h-12 rounded-xl flex items-center justify-center disabled:opacity-40"
-                        style={{ background: '#4F8EF7', color: 'white' }}
-                        whileHover={{ scale: 1.06, boxShadow: '0 8px 24px rgba(79,142,247,0.5)' }}
+                        style={{ background: '#1B1813', color: 'white' }}
+                        whileHover={{ scale: 1.06, boxShadow: '0 8px 24px rgba(27,24,19,0.5)' }}
                         whileTap={{ scale: 0.94 }}
                         transition={SPRING}
                       >

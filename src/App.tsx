@@ -9,7 +9,6 @@ import ScrollToTop from './components/ScrollToTop';
 import ErrorBoundary from './components/ErrorBoundary';
 import SupportAIChat from './components/SupportAIChat';
 import ScrollProgressBar from './components/ScrollProgressBar';
-import CursorGlow from './components/CursorGlow';
 import GrainOverlay from './components/GrainOverlay';
 import { AnimatePresence } from 'framer-motion';
 
@@ -37,8 +36,8 @@ const AdminPage          = lazy(() => import('./pages/AdminPage'));
 
 function PageSpinner() {
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#080B14' }}>
-      <div className="w-10 h-10 border-4 border-white/10 border-t-white/60 rounded-full animate-spin" />
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#F6F4EF' }}>
+      <div className="w-10 h-10 border-2 border-[rgba(27,24,19,0.12)] border-t-[rgba(27,24,19,0.55)] rounded-full animate-spin" />
     </div>
   );
 }
@@ -114,7 +113,6 @@ export default function App() {
     <Router>
       {/* Global visual layer */}
       <ScrollProgressBar />
-      <CursorGlow />
       <GrainOverlay />
 
       <ScrollToTop />

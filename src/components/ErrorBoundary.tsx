@@ -22,14 +22,14 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.hasError) return this.props.children;
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: '#0A0F1E' }}>
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--paper)' }}>
         <div className="max-w-md w-full text-center">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
-            style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            style={{ background: 'rgba(188,90,72,0.1)', border: '1px solid rgba(188,90,72,0.25)' }}>
             <span className="text-2xl">⚠</span>
           </div>
-          <h1 className="text-2xl font-bold text-white mb-3">Something went wrong</h1>
-          <p className="text-sm mb-8" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          <h1 className="font-display text-3xl mb-3" style={{ color: 'var(--ink)' }}>Something went wrong</h1>
+          <p className="text-sm mb-8" style={{ color: 'var(--ink-soft)' }}>
             An unexpected error occurred. Please try refreshing the page.
           </p>
           <div className="flex gap-3 justify-center">
@@ -42,7 +42,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             <Link to="/" className="btn-secondary py-3 px-6 text-sm">Go Home</Link>
           </div>
           {this.state.message && (
-            <p className="mt-6 text-[10px] font-mono" style={{ color: 'rgba(255,255,255,0.2)' }}>
+            <p className="mt-6 text-[10px] font-mono" style={{ color: 'var(--ink-faint)' }}>
               {this.state.message}
             </p>
           )}

@@ -58,29 +58,29 @@ export default function CoachAvailabilityPage() {
     } finally { setIsSubmitting(false); }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center" style={{ background: '#0A0F1E' }}><Loader2 className="animate-spin" size={40} style={{ color: '#4F8EF7' }} /></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center" style={{ background: '#F6F4EF' }}><Loader2 className="animate-spin" size={40} style={{ color: '#1B1813' }} /></div>;
 
   return (
     <PageTransition>
-      <div className="min-h-screen" style={{ background: '#0A0F1E' }}>
-        <div className="py-12 pt-28" style={{ background: 'rgba(79,142,247,0.05)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="min-h-screen" style={{ background: '#F6F4EF' }}>
+        <div className="py-12 pt-28" style={{ background: 'rgba(27,24,19,0.05)', borderBottom: '1px solid rgba(27,24,19,0.06)' }}>
           <div className="max-w-4xl mx-auto px-4">
-            <Link to="/dashboard" className="flex items-center gap-2 text-sm font-medium mb-6 w-fit" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <Link to="/dashboard" className="flex items-center gap-2 text-sm font-medium mb-6 w-fit" style={{ color: 'rgba(27,24,19,0.4)' }}>
               <ArrowLeft size={16} /> Back to Dashboard
             </Link>
-            <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#4F8EF7' }}>Availability</p>
-            <h1 className="text-3xl font-bold text-white">Set Your Schedule</h1>
-            <p className="mt-2 text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Select your available days and time slots. Players will see this on your profile.</p>
+            <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#1B1813' }}>Availability</p>
+            <h1 className="text-3xl font-bold text-ink">Set Your Schedule</h1>
+            <p className="mt-2 text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>Select your available days and time slots. Players will see this on your profile.</p>
           </div>
         </div>
 
         <div className="max-w-4xl mx-auto px-4 py-12">
-          <div className="flex items-center justify-between mb-8 p-4 rounded-2xl" style={{ background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.15)' }}>
+          <div className="flex items-center justify-between mb-8 p-4 rounded-2xl" style={{ background: 'rgba(27,24,19,0.08)', border: '1px solid rgba(27,24,19,0.15)' }}>
             <div className="flex items-center gap-3">
-              <Clock size={18} style={{ color: '#4F8EF7' }} />
-              <span className="text-sm font-bold text-white">{totalSlots} time slots selected</span>
+              <Clock size={18} style={{ color: '#1B1813' }} />
+              <span className="text-sm font-bold text-ink">{totalSlots} time slots selected</span>
             </div>
-            <button onClick={() => setAvailability({})} className="text-xs font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.3)' }}>Clear All</button>
+            <button onClick={() => setAvailability({})} className="text-xs font-bold uppercase tracking-widest" style={{ color: 'rgba(27,24,19,0.3)' }}>Clear All</button>
           </div>
 
           <div className="space-y-4 mb-12">
@@ -91,18 +91,18 @@ export default function CoachAvailabilityPage() {
               return (
                 <motion.div key={day} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: di * 0.05 }}
                   className="rounded-2xl overflow-hidden"
-                  style={{ border: hasSlots ? '1px solid rgba(79,142,247,0.2)' : '1px solid rgba(255,255,255,0.06)', background: hasSlots ? 'rgba(79,142,247,0.04)' : 'rgba(255,255,255,0.02)' }}>
+                  style={{ border: hasSlots ? '1px solid rgba(27,24,19,0.2)' : '1px solid rgba(27,24,19,0.06)', background: hasSlots ? 'rgba(27,24,19,0.04)' : 'rgba(27,24,19,0.02)' }}>
                   <div className="flex items-center justify-between p-4">
                     <div className="flex items-center gap-3">
                       <button onClick={() => toggleDay(day)}
                         className="w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all"
-                        style={{ borderColor: hasSlots ? '#4F8EF7' : 'rgba(255,255,255,0.2)', background: isFullDay ? '#4F8EF7' : 'transparent' }}>
-                        {hasSlots && <CheckCircle2 size={14} className="text-white" />}
+                        style={{ borderColor: hasSlots ? '#1B1813' : 'rgba(27,24,19,0.2)', background: isFullDay ? '#1B1813' : 'transparent' }}>
+                        {hasSlots && <CheckCircle2 size={14} className="text-ink" />}
                       </button>
-                      <span className="font-bold text-white">{day}</span>
-                      {hasSlots && <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(79,142,247,0.15)', color: '#4F8EF7' }}>{daySlots.length} slot{daySlots.length !== 1 ? 's' : ''}</span>}
+                      <span className="font-bold text-ink">{day}</span>
+                      {hasSlots && <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(27,24,19,0.15)', color: '#1B1813' }}>{daySlots.length} slot{daySlots.length !== 1 ? 's' : ''}</span>}
                     </div>
-                    <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                    <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'rgba(27,24,19,0.25)' }}>
                       {isFullDay ? 'All day' : hasSlots ? 'Custom' : 'Unavailable'}
                     </span>
                   </div>
@@ -111,8 +111,8 @@ export default function CoachAvailabilityPage() {
                       const active = daySlots.includes(slot);
                       return (
                         <button key={slot} onClick={() => toggleSlot(day, slot)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                          style={{ background: active ? 'rgba(79,142,247,0.2)' : 'rgba(255,255,255,0.04)', border: `1px solid ${active ? 'rgba(79,142,247,0.4)' : 'rgba(255,255,255,0.06)'}`, color: active ? '#4F8EF7' : 'rgba(255,255,255,0.35)' }}>
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                          style={{ background: active ? '#16130E' : 'var(--card-cream)', border: `1px solid ${active ? '#16130E' : 'var(--line-strong)'}`, color: active ? 'var(--paper)' : 'var(--ink-soft)' }}>
                           {slot}
                         </button>
                       );
@@ -124,7 +124,7 @@ export default function CoachAvailabilityPage() {
           </div>
 
           <div className="flex justify-between items-center pb-12">
-            <Link to="/dashboard" className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.4)' }}>Cancel</Link>
+            <Link to="/dashboard" className="text-sm font-bold" style={{ color: 'rgba(27,24,19,0.4)' }}>Cancel</Link>
             <button onClick={handleSave} disabled={isSubmitting} className="btn-primary py-4 px-10 flex items-center gap-2 disabled:opacity-50">
               {isSubmitting ? <><Loader2 className="animate-spin" size={16} /> Saving...</> : saved ? <><CheckCircle2 size={16} /> Saved!</> : <><Save size={16} /> Save Availability</>}
             </button>

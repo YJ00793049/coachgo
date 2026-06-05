@@ -14,8 +14,8 @@ export default function SupportPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Help Center */}
-          <section className="bg-card-bg p-8 rounded-3xl border border-border-navy hover:border-white/20 transition-colors">
-            <div className="w-12 h-12 bg-border-navy rounded-2xl flex items-center justify-center mb-6 text-white">
+          <section className="bg-card-bg p-8 rounded-3xl border border-border-navy hover:border-[rgba(27,24,19,0.14)] transition-colors">
+            <div className="w-12 h-12 bg-border-navy rounded-2xl flex items-center justify-center mb-6 text-ink">
               <HelpCircle size={24} />
             </div>
             <h2 className="text-2xl font-bold mb-4">Help Center</h2>
@@ -24,29 +24,29 @@ export default function SupportPage() {
             </p>
             <Link 
               to="/help"
-              className="text-sm font-bold uppercase tracking-widest hover:text-white transition-colors flex items-center gap-2"
+              className="text-sm font-bold uppercase tracking-widest hover:text-ink transition-colors flex items-center gap-2"
             >
               Browse Articles
             </Link>
           </section>
 
           {/* Contact Us */}
-          <section className="bg-card-bg p-8 rounded-3xl border border-border-navy hover:border-white/20 transition-colors">
-            <div className="w-12 h-12 bg-border-navy rounded-2xl flex items-center justify-center mb-6 text-white">
+          <section className="bg-card-bg p-8 rounded-3xl border border-border-navy hover:border-[rgba(27,24,19,0.14)] transition-colors">
+            <div className="w-12 h-12 bg-border-navy rounded-2xl flex items-center justify-center mb-6 text-ink">
               <Mail size={24} />
             </div>
             <h2 className="text-2xl font-bold mb-4">Contact Us</h2>
             <p className="text-text-secondary mb-6 leading-relaxed">
               Have a specific question? Our team is here to help you get the most out of CoachGo.
             </p>
-            <Link to="/contact" className="text-sm font-bold uppercase tracking-widest hover:text-white transition-colors flex items-center gap-2">
+            <Link to="/contact" className="text-sm font-bold uppercase tracking-widest hover:text-ink transition-colors flex items-center gap-2">
               Send a Message
             </Link>
           </section>
 
           {/* Privacy Policy */}
-          <section className="bg-card-bg p-8 rounded-3xl border border-border-navy hover:border-white/20 transition-colors">
-            <div className="w-12 h-12 bg-border-navy rounded-2xl flex items-center justify-center mb-6 text-white">
+          <section className="bg-card-bg p-8 rounded-3xl border border-border-navy hover:border-[rgba(27,24,19,0.14)] transition-colors">
+            <div className="w-12 h-12 bg-border-navy rounded-2xl flex items-center justify-center mb-6 text-ink">
               <Shield size={24} />
             </div>
             <h2 className="text-2xl font-bold mb-4">Privacy Policy</h2>
@@ -55,15 +55,15 @@ export default function SupportPage() {
             </p>
             <Link 
               to="/privacy"
-              className="text-sm font-bold uppercase tracking-widest hover:text-white transition-colors flex items-center gap-2"
+              className="text-sm font-bold uppercase tracking-widest hover:text-ink transition-colors flex items-center gap-2"
             >
               Read Policy
             </Link>
           </section>
 
           {/* Terms of Service */}
-          <section className="bg-card-bg p-8 rounded-3xl border border-border-navy hover:border-white/20 transition-colors">
-            <div className="w-12 h-12 bg-border-navy rounded-2xl flex items-center justify-center mb-6 text-white">
+          <section className="bg-card-bg p-8 rounded-3xl border border-border-navy hover:border-[rgba(27,24,19,0.14)] transition-colors">
+            <div className="w-12 h-12 bg-border-navy rounded-2xl flex items-center justify-center mb-6 text-ink">
               <FileText size={24} />
             </div>
             <h2 className="text-2xl font-bold mb-4">Terms of Service</h2>
@@ -72,7 +72,7 @@ export default function SupportPage() {
             </p>
             <Link 
               to="/terms"
-              className="text-sm font-bold uppercase tracking-widest hover:text-white transition-colors flex items-center gap-2"
+              className="text-sm font-bold uppercase tracking-widest hover:text-ink transition-colors flex items-center gap-2"
             >
               View Terms
             </Link>
