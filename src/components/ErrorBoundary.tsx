@@ -17,6 +17,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: { componentStack: string }) {
     console.error('Uncaught error:', error, info);
+    import('../utils/monitoring').then(m => m.captureError(error, { componentStack: info.componentStack })).catch(() => {});
   }
 
   render() {

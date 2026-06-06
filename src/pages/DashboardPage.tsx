@@ -7,6 +7,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import PageTransition from '../components/PageTransition';
 import AnimatedCounter from '../components/AnimatedCounter';
 import MarketingToolkit from '../components/MarketingToolkit';
+import { notify } from '../utils/notifications';
 import { SPRING } from '../tokens';
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc, serverTimestamp, getDocs, deleteDoc, getCountFromServer } from 'firebase/firestore';
 import { LOCATION_MODE_META } from '../utils/scheduling';
@@ -76,6 +77,7 @@ function ReviewModal({ session, coachName, onClose, onSubmit }: ReviewModalProps
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.25 }}
           onClick={e => e.stopPropagation()}
+          role="dialog" aria-modal="true" aria-label="Leave a review"
           className="w-full max-w-md rounded-3xl p-8"
           style={{ background: '#FBFAF6', border: '1px solid rgba(27,24,19,0.08)' }}
         >
@@ -183,6 +185,7 @@ function RescheduleModal({ session, coachName, onClose, onSubmit, date, setDate,
         <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}
           onClick={e => e.stopPropagation()}
+          role="dialog" aria-modal="true" aria-label="Request a reschedule"
           className="w-full max-w-md rounded-3xl p-8"
           style={{ background: '#FBFAF6', border: '1px solid rgba(27,24,19,0.08)' }}>
           <div className="flex items-start justify-between mb-6">
@@ -417,6 +420,7 @@ export default function DashboardPage() {
         reschedule_time: rescheduleTime,
         reschedule_note: rescheduleNote,
       });
+      notify(rescheduleSession.coach_id, { type: 'reschedule_request', title: 'Reschedule requested', body: `${rescheduleSession.player_name || 'A player'} wants ${rescheduleDate} at ${rescheduleTime}.`, link: '/dashboard' });
       setRescheduleSession(null);
       setRescheduleDate(''); setRescheduleTime(''); setRescheduleNote('');
     } catch (err) { console.error(err); }
@@ -430,7 +434,11 @@ export default function DashboardPage() {
 
   const notifyWaitlist = async (id: string) => {
     setUpdatingId(id);
-    try { await updateDoc(doc(db, 'waitlists', id), { notified: true }); }
+    try {
+      await updateDoc(doc(db, 'waitlists', id), { notified: true });
+      const w = coachWaitlist.find(x => x.id === id);
+      notify(w?.player_id, { type: 'waitlist', title: 'A waitlist spot may be open', body: `${w?.session_type || 'A session'} on ${w?.date} at ${w?.time_slot} — check with your coach.`, link: '/coaches' });
+    }
     catch (err) { console.error(err); }
     finally { setUpdatingId(null); }
   };
@@ -446,6 +454,8 @@ export default function DashboardPage() {
         reschedule_time: null,
         reschedule_note: null,
       });
+      const b = coachBookings.find(x => x.id === bookingId);
+      notify(b?.player_id, { type: 'reschedule_resolved', title: 'Reschedule accepted', body: `${b?.session_type || 'Session'} moved to ${newDate} at ${newTime}`, link: '/dashboard' });
     } catch (err) { console.error(err); }
     finally { setUpdatingId(null); }
   };
@@ -459,6 +469,8 @@ export default function DashboardPage() {
         reschedule_time: null,
         reschedule_note: null,
       });
+      const b = coachBookings.find(x => x.id === bookingId);
+      notify(b?.player_id, { type: 'reschedule_resolved', title: 'Reschedule declined', body: `Your original time for ${b?.session_type || 'the session'} stands.`, link: '/dashboard' });
     } catch (err) { console.error(err); }
     finally { setUpdatingId(null); }
   };
@@ -501,6 +513,12 @@ export default function DashboardPage() {
             sessionType: booking.session_type,
             date: booking.date,
           });
+        }
+
+        if (status === 'confirmed') {
+          notify(booking.player_id, { type: 'booking_confirmed', title: `Confirmed with ${coachName}`, body: `${booking.session_type} · ${booking.date} at ${booking.time_slot}`, link: '/dashboard' });
+        } else if (status === 'declined') {
+          notify(booking.player_id, { type: 'booking_declined', title: 'Booking declined', body: `${coachName} couldn't take ${booking.session_type} on ${booking.date}.`, link: '/coaches' });
         }
       }
     } catch (err) {

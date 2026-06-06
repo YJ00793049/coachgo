@@ -269,6 +269,33 @@ service cloud.firestore {
     }
 
     // ===============================================================
+    // App config / feature flags (public read, admin write)
+    // ===============================================================
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ===============================================================
+    // Notifications (in-app)
+    // ===============================================================
+    match /notifications/{notifId} {
+      // Recipient (or admin) can read their notifications
+      allow read: if isAuthenticated() &&
+        (resource.data.user_id == request.auth.uid || isAdmin());
+      // Any authed user can create a notification addressed to someone
+      allow create: if isAuthenticated() &&
+        request.resource.data.keys().hasAll(['user_id', 'title', 'created_at']);
+      // Only the recipient can mark it read (no recipient change)
+      allow update: if isAuthenticated() &&
+        resource.data.user_id == request.auth.uid &&
+        request.resource.data.user_id == resource.data.user_id;
+      // Recipient or admin can delete
+      allow delete: if isAuthenticated() &&
+        (resource.data.user_id == request.auth.uid || isAdmin());
+    }
+
+    // ===============================================================
     // Coach profile views (analytics — append-only)
     // ===============================================================
     match /coach_views/{viewId} {

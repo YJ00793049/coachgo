@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { EASE_OUT } from '../tokens';
 
@@ -75,8 +75,29 @@ export function MeshCard({
   className?: string;
   style?: React.CSSProperties;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const onMove = (e: React.MouseEvent) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty('--mx', `${((e.clientX - r.left) / r.width) * 100}%`);
+    el.style.setProperty('--my', `${((e.clientY - r.top) / r.height) * 100}%`);
+    el.style.setProperty('--spec', '1');
+  };
+  const onLeave = () => { ref.current?.style.setProperty('--spec', '0'); };
   return (
-    <div className={`mesh-soft ${className}`} style={style}>
+    <div ref={ref} className={`mesh-soft ${className}`} style={style} onMouseMove={onMove} onMouseLeave={onLeave}>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: 'radial-gradient(circle 200px at var(--mx,50%) var(--my,50%), rgba(255,255,255,0.55), transparent 60%)',
+          opacity: 'var(--spec, 0)' as any,
+          transition: 'opacity 0.4s ease',
+          mixBlendMode: 'soft-light',
+          borderRadius: 'inherit',
+        }}
+      />
       {children}
     </div>
   );
@@ -280,17 +301,18 @@ export function Baseball({ className = '', size = 120 }: { className?: string; s
 }
 
 /* ── Interactive baseball field (discipline nav) ───────────────── */
-const FIELD_ZONES: { slug: string; label: string; top: string; left: string }[] = [
-  { slug: 'strength', label: 'Strength', top: '20%', left: '50%' },  // outfield
-  { slug: 'fielding', label: 'Fielding', top: '40%', left: '74%' },  // 1st-base side infield
-  { slug: 'pitching', label: 'Pitching', top: '52%', left: '50%' },  // mound
-  { slug: 'hitting',  label: 'Hitting',  top: '76%', left: '50%' },  // home plate
+const FIELD_ZONES: { slug: string; label: string; top: string; left: string; glow: string }[] = [
+  { slug: 'strength', label: 'Strength', top: '20%', left: '50%', glow: 'rgba(232,196,155,0.6)' },  // outfield
+  { slug: 'fielding', label: 'Fielding', top: '40%', left: '74%', glow: 'rgba(185,203,166,0.6)' },  // 1st-base side infield
+  { slug: 'pitching', label: 'Pitching', top: '52%', left: '50%', glow: 'rgba(173,197,215,0.6)' },  // mound
+  { slug: 'hitting',  label: 'Hitting',  top: '76%', left: '50%', glow: 'rgba(219,167,132,0.6)' },  // home plate
 ];
 
 export function InteractiveBaseballField({
   onSelect,
+  counts,
   className = '',
-}: { onSelect: (slug: string) => void; className?: string }) {
+}: { onSelect: (slug: string) => void; counts?: Record<string, number>; className?: string }) {
   return (
     <div className={`relative ${className}`}>
       <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
@@ -302,7 +324,7 @@ export function InteractiveBaseballField({
           type="button"
           onClick={() => onSelect(z.slug)}
           aria-label={`Browse ${z.label} coaches`}
-          className="group absolute -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 px-3.5 py-2 rounded-full transition-all hover:scale-[1.06] focus-visible:scale-[1.06]"
+          className="group absolute -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 px-3.5 py-2 rounded-full transition-transform duration-300 hover:scale-[1.07] focus-visible:scale-[1.07]"
           style={{
             top: z.top,
             left: z.left,
@@ -312,8 +334,13 @@ export function InteractiveBaseballField({
             boxShadow: '0 6px 18px rgba(27,24,19,0.10)',
           }}
         >
+          <span aria-hidden className="absolute -inset-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+            style={{ background: `radial-gradient(circle, ${z.glow} 0%, transparent 70%)`, filter: 'blur(8px)', zIndex: -1 }} />
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--ink)' }} />
           <span className="text-sm">{z.label}</span>
+          {counts && counts[z.slug] != null && (
+            <span className="text-xs" style={{ color: 'var(--ink-faint)' }}>· {counts[z.slug]}</span>
+          )}
           <span className="text-[var(--ink-faint)] transition-transform group-hover:translate-x-0.5" aria-hidden>→</span>
         </button>
       ))}

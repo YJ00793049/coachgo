@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
-import { Search, ArrowUpDown, MapPin, X, Star, Check, Bookmark, Zap, Trash2, GitCompare } from 'lucide-react';
+import { Search, ArrowUpDown, MapPin, X, Star, Check, Bookmark, Zap, Trash2, GitCompare, Sparkles } from 'lucide-react';
 import CoachCard from '../components/CoachCard';
+import AiMatchModal from '../components/AiMatchModal';
 import { CoachProfile, LocationMode } from '../types';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import PageTransition from '../components/PageTransition';
@@ -13,6 +14,7 @@ import {
   seenFlag, markSeen, type RecentCoach, type SavedSearch,
 } from '../utils/discovery';
 import { enabledLocationModes, LOCATION_MODE_META } from '../utils/scheduling';
+import { Baseball } from '../components/visuals';
 
 export const MOCK_COACHES: CoachProfile[] = [
   {
@@ -137,6 +139,7 @@ export default function CoachesPage() {
 
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [showCompare, setShowCompare] = useState(false);
+  const [showAiMatch, setShowAiMatch] = useState(false);
 
   useEffect(() => {
     setSavedSearches(getSavedSearches());
@@ -259,8 +262,15 @@ export default function CoachesPage() {
             transition={{ duration: 0.6, ease: EASE_OUT }} className="mb-10"
           >
             <span className="eyebrow mb-5 inline-flex">The marketplace</span>
-            <h1 className="display-lg mb-3">Find your coach</h1>
-            <p className="text-base" style={{ color: 'var(--ink-soft)' }}>Browse our marketplace of vetted San Diego baseball specialists.</p>
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+              <div>
+                <h1 className="display-lg mb-3">Find your coach</h1>
+                <p className="text-base" style={{ color: 'var(--ink-soft)' }}>Browse our marketplace of vetted San Diego baseball specialists.</p>
+              </div>
+              <button onClick={() => setShowAiMatch(true)} className="btn-primary self-start md:self-auto shrink-0">
+                <Sparkles size={16} /> Find my match with AI
+              </button>
+            </div>
           </motion.div>
 
           {/* Academy filter banner */}
@@ -534,9 +544,14 @@ export default function CoachesPage() {
                 className="text-center py-20 px-6 rounded-3xl"
                 style={{ border: '1px dashed var(--line-strong)', background: 'var(--card-cream)' }}
               >
-                <div className="w-14 h-14 rounded-2xl mx-auto mb-5 flex items-center justify-center" style={{ background: 'var(--paper-warm)' }}>
-                  <Search size={24} style={{ color: 'var(--ink-faint)' }} />
-                </div>
+                <motion.div
+                  className="mx-auto mb-5 w-fit"
+                  initial={prefersReduced ? {} : { x: -36, rotate: -90, opacity: 0 }}
+                  animate={prefersReduced ? {} : { x: 0, rotate: 0, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 120, damping: 12 }}
+                >
+                  <Baseball size={52} />
+                </motion.div>
                 <h3 className="font-display text-2xl mb-2" style={{ color: 'var(--ink)' }}>No coaches match those filters</h3>
                 <p className="text-sm max-w-sm mx-auto mb-6" style={{ color: 'var(--ink-soft)' }}>
                   {availableNow
@@ -588,6 +603,12 @@ export default function CoachesPage() {
         <AnimatePresence>
           {showCompare && (
             <CompareModal coaches={compareCoaches} onClose={() => setShowCompare(false)} navigate={navigate} />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showAiMatch && (
+            <AiMatchModal coaches={coaches} onClose={() => setShowAiMatch(false)} navigate={navigate} />
           )}
         </AnimatePresence>
       </div>
@@ -647,6 +668,7 @@ function CompareModal({ coaches, onClose, navigate }: {
         initial={{ opacity: 0, scale: 0.97, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }}
         transition={{ duration: 0.25 }}
         onClick={e => e.stopPropagation()}
+        role="dialog" aria-modal="true" aria-label="Compare coaches"
         className="w-full max-w-3xl rounded-3xl overflow-hidden max-h-[85vh] flex flex-col"
         style={{ background: 'var(--card-cream)', border: '1px solid var(--line)' }}
       >

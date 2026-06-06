@@ -1,28 +1,33 @@
 import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../firebase';
-import { collection, getDocs, doc, getDoc, query, orderBy, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, query, orderBy, updateDoc, deleteDoc, getCountFromServer, where, serverTimestamp } from 'firebase/firestore';
 import { motion } from 'framer-motion';
-import { Loader2, ShieldAlert, Users, Calendar, DollarSign, TrendingUp, CheckCircle2, Clock, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, ShieldAlert, Users, Calendar, DollarSign, TrendingUp, CheckCircle2, Clock, X, ChevronDown, ChevronUp, Star, Trash2, BarChart2, Settings, Eye } from 'lucide-react';
 import PageTransition from '../components/PageTransition';
 import { Link } from 'react-router-dom';
 
-const ADMIN_UIDS = ['EgFXaheIIDPYcX3Mx2blDtSqHe02'];
+// Unified with firestore.rules isAdmin(): verified admin email OR users/{uid}.role === 'admin'
+const ADMIN_EMAIL = 'yuvrajjindal2020@gmail.com';
 
 export default function AdminPage() {
   const [user] = useAuthState(auth);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [bookings, setBookings] = useState<any[]>([]);
   const [coaches, setCoaches] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [profileViews, setProfileViews] = useState<number | null>(null);
+  const [flags, setFlags] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'coaches'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'funnel' | 'bookings' | 'coaches' | 'reviews' | 'settings'>('overview');
   const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState('');
 
   useEffect(() => {
     if (!user) return;
     const check = async () => {
-      if (ADMIN_UIDS.includes(user.uid)) {
+      if (user.email === ADMIN_EMAIL && user.emailVerified) {
         setIsAdmin(true);
         return;
       }
@@ -40,12 +45,20 @@ export default function AdminPage() {
     if (!isAdmin) return;
     const fetchAll = async () => {
       try {
-        const [bookingsSnap, coachesSnap] = await Promise.all([
+        const [bookingsSnap, coachesSnap, reviewsSnap, flagsSnap] = await Promise.all([
           getDocs(query(collection(db, 'bookings'), orderBy('created_at', 'desc'))),
           getDocs(collection(db, 'coach_profiles')),
+          getDocs(query(collection(db, 'reviews'), orderBy('created_at', 'desc'))).catch(() => null),
+          getDoc(doc(db, 'config', 'flags')).catch(() => null),
         ]);
         setBookings(bookingsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setCoaches(coachesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        if (reviewsSnap) setReviews(reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        if (flagsSnap && flagsSnap.exists()) { setFlags(flagsSnap.data()); setAnnouncement(flagsSnap.data().announcement || ''); }
+        try {
+          const vc = await getCountFromServer(collection(db, 'coach_views'));
+          setProfileViews(vc.data().count);
+        } catch { setProfileViews(null); }
       } catch (err) {
         console.error(err);
       } finally {
@@ -63,6 +76,32 @@ export default function AdminPage() {
     } catch (err) { console.error(err); }
     finally { setUpdatingId(null); }
   };
+
+  const toggleCoachActive = async (coachId: string, current: boolean) => {
+    setUpdatingId(coachId);
+    try {
+      await updateDoc(doc(db, 'coach_profiles', coachId), { is_active: !current });
+      setCoaches(prev => prev.map(c => c.id === coachId ? { ...c, is_active: !current } : c));
+    } catch (err) { console.error(err); }
+    finally { setUpdatingId(null); }
+  };
+
+  const deleteReview = async (reviewId: string) => {
+    if (!confirm('Delete this review permanently?')) return;
+    setUpdatingId(reviewId);
+    try {
+      await deleteDoc(doc(db, 'reviews', reviewId));
+      setReviews(prev => prev.filter(r => r.id !== reviewId));
+    } catch (err) { console.error(err); }
+    finally { setUpdatingId(null); }
+  };
+
+  const saveFlags = async (next: Record<string, any>) => {
+    setFlags(next);
+    try { await setDoc(doc(db, 'config', 'flags'), { ...next, updated_at: serverTimestamp() }, { merge: true }); }
+    catch (err) { console.error(err); }
+  };
+  const toggleFlag = (key: string) => saveFlags({ ...flags, [key]: !flags[key] });
 
   if (!user) {
     return (
@@ -135,8 +174,8 @@ export default function AdminPage() {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-2 mb-8">
-            {(['overview', 'bookings', 'coaches'] as const).map(tab => (
+          <div className="flex gap-2 mb-8 flex-wrap">
+            {(['overview', 'funnel', 'bookings', 'coaches', 'reviews', 'settings'] as const).map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className="px-5 py-2.5 rounded-xl text-sm font-bold uppercase tracking-widest transition-all"
                 style={{
@@ -192,6 +231,47 @@ export default function AdminPage() {
               </div>
             </div>
           )}
+
+          {/* Funnel Tab */}
+          {activeTab === 'funnel' && (() => {
+            const views = profileViews ?? 0;
+            const created = bookings.length;
+            const confirmed = byStatus('confirmed') + byStatus('completed');
+            const completed = byStatus('completed');
+            const steps = [
+              { label: 'Profile views', value: views, icon: <Eye size={18} /> },
+              { label: 'Bookings created', value: created, icon: <Calendar size={18} /> },
+              { label: 'Confirmed', value: confirmed, icon: <CheckCircle2 size={18} /> },
+              { label: 'Completed (paid)', value: completed, icon: <DollarSign size={18} /> },
+            ];
+            const max = Math.max(views, created, 1);
+            const conv = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0);
+            return (
+              <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
+                <h3 className="font-display text-xl text-ink mb-2">Conversion funnel</h3>
+                <p className="text-sm mb-8" style={{ color: 'rgba(27,24,19,0.45)' }}>View → book → confirm → complete, across the platform.</p>
+                <div className="space-y-5">
+                  {steps.map((s, i) => (
+                    <div key={s.label}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm flex items-center gap-2 text-ink">{s.icon} {s.label}</span>
+                        <span className="text-sm font-bold text-ink">
+                          {s.value}{i > 0 && <span className="ml-2 text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>{conv(s.value, steps[i - 1].value)}% of prev</span>}
+                        </span>
+                      </div>
+                      <div className="w-full h-3 rounded-full" style={{ background: 'rgba(27,24,19,0.06)' }}>
+                        <motion.div className="h-full rounded-full" style={{ background: '#16130E' }}
+                          initial={{ width: 0 }} animate={{ width: `${Math.round((s.value / max) * 100)}%` }} transition={{ delay: i * 0.08, duration: 0.6 }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs mt-6" style={{ color: 'rgba(27,24,19,0.35)' }}>
+                  Overall view→booking: <strong style={{ color: 'var(--ink)' }}>{conv(created, views)}%</strong> · booking→completed: <strong style={{ color: 'var(--ink)' }}>{conv(completed, created)}%</strong>
+                </p>
+              </div>
+            );
+          })()}
 
           {/* Bookings Tab */}
           {activeTab === 'bookings' && (
@@ -284,10 +364,14 @@ export default function AdminPage() {
                       <td className="px-6 py-4 capitalize" style={{ color: 'rgba(27,24,19,0.45)' }}>{c.specialty || '—'}</td>
                       <td className="px-6 py-4 font-bold" style={{ color: '#C79A57' }}>{c.rating ? `★ ${c.rating}` : '—'}</td>
                       <td className="px-6 py-4">
-                        <span className="text-[10px] font-bold px-2 py-1 rounded-full"
-                          style={{ background: c.is_active !== false ? 'rgba(94,140,90,0.1)' : 'rgba(27,24,19,0.05)', color: c.is_active !== false ? '#5E8C5A' : 'rgba(27,24,19,0.3)' }}>
-                          {c.is_active !== false ? 'Active' : 'Inactive'}
-                        </span>
+                        <button
+                          onClick={() => toggleCoachActive(c.id, c.is_active !== false)}
+                          disabled={updatingId === c.id}
+                          className="text-[10px] font-bold px-2.5 py-1 rounded-full transition-opacity hover:opacity-80 disabled:opacity-40"
+                          title="Toggle active"
+                          style={{ background: c.is_active !== false ? 'rgba(94,140,90,0.12)' : 'rgba(27,24,19,0.05)', color: c.is_active !== false ? '#5E8C5A' : 'rgba(27,24,19,0.4)', border: `1px solid ${c.is_active !== false ? 'rgba(94,140,90,0.3)' : 'var(--line-strong)'}` }}>
+                          {updatingId === c.id ? '…' : (c.is_active !== false ? 'Active' : 'Inactive')}
+                        </button>
                       </td>
                       <td className="px-6 py-4">
                         <a href={`/coaches/${c.id}`} target="_blank" rel="noopener noreferrer"
@@ -300,6 +384,78 @@ export default function AdminPage() {
               {coaches.length === 0 && (
                 <div className="py-16 text-center" style={{ color: 'rgba(27,24,19,0.3)' }}>No coach profiles found.</div>
               )}
+            </div>
+          )}
+
+          {/* Reviews Tab */}
+          {activeTab === 'reviews' && (
+            <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] overflow-hidden">
+              <div className="divide-y divide-[rgba(27,24,19,0.06)]">
+                {reviews.map(r => (
+                  <div key={r.id} className="p-6 flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-ink">{r.player_name || 'Player'}</span>
+                        <span className="inline-flex items-center gap-0.5 text-xs" style={{ color: '#C79A57' }}>
+                          {Array.from({ length: r.rating || 0 }).map((_, i) => <Star key={i} size={11} fill="#C79A57" style={{ color: '#C79A57' }} />)}
+                        </span>
+                      </div>
+                      <p className="text-sm" style={{ color: 'rgba(27,24,19,0.6)' }}>{r.comment}</p>
+                      <p className="text-[11px] mt-1 font-mono" style={{ color: 'rgba(27,24,19,0.3)' }}>coach: {r.coach_id}</p>
+                    </div>
+                    <button onClick={() => deleteReview(r.id)} disabled={updatingId === r.id}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-xs transition-colors hover:bg-[rgba(188,90,72,0.1)] disabled:opacity-40"
+                      style={{ border: '1px solid var(--line-strong)', color: '#BC5A48' }}>
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {reviews.length === 0 && (
+                <div className="py-16 text-center" style={{ color: 'rgba(27,24,19,0.3)' }}>No reviews found.</div>
+              )}
+            </div>
+          )}
+
+          {/* Settings / Feature flags Tab */}
+          {activeTab === 'settings' && (
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
+                <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3"><Settings size={20} /> Feature flags</h3>
+                {[
+                  { key: 'maintenance', label: 'Maintenance banner', desc: 'Show a site-wide maintenance notice.' },
+                  { key: 'ai_match_enabled', label: 'AI match', desc: 'Enable the AI coach-matching tool.' },
+                  { key: 'instant_book_promo', label: 'Promote instant book', desc: 'Highlight instant-book coaches.' },
+                ].map(f => (
+                  <div key={f.key} className="flex items-center justify-between gap-4 py-3" style={{ borderTop: '1px solid var(--line)' }}>
+                    <div>
+                      <p className="text-sm font-medium text-ink">{f.label}</p>
+                      <p className="text-xs" style={{ color: 'var(--ink-soft)' }}>{f.desc}</p>
+                    </div>
+                    <button onClick={() => toggleFlag(f.key)} aria-pressed={!!flags[f.key]}
+                      className="shrink-0 w-12 h-7 rounded-full flex items-center transition-colors"
+                      style={{ background: flags[f.key] ? 'var(--black)' : 'rgba(27,24,19,0.16)', padding: 3 }}>
+                      <span className="w-5 h-5 rounded-full bg-white transition-transform" style={{ transform: flags[f.key] ? 'translateX(20px)' : 'translateX(0)' }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
+                <h3 className="font-display text-xl text-ink mb-2 flex items-center gap-3"><BarChart2 size={20} /> Announcement</h3>
+                <p className="text-xs mb-4" style={{ color: 'var(--ink-soft)' }}>Shown in the maintenance banner when enabled.</p>
+                <textarea
+                  value={announcement}
+                  onChange={e => setAnnouncement(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Scheduled maintenance Sunday 2–4am PT."
+                  className="cg-input text-sm resize-none mb-3"
+                />
+                <button onClick={() => saveFlags({ ...flags, announcement })} className="btn-primary py-2.5 px-5 text-sm">Save announcement</button>
+                <p className="text-xs mt-4" style={{ color: 'var(--ink-faint)' }}>
+                  Admin identity is unified with security rules: verified <span className="font-mono">{ADMIN_EMAIL}</span> or a user with <span className="font-mono">role: 'admin'</span>.
+                </p>
+              </div>
             </div>
           )}
         </div>

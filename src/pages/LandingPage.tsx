@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, useReducedMotion, AnimatePresence } from 'framer-motion';
+import { motion, useReducedMotion, AnimatePresence, useMotionValue, useSpring, useTransform, useScroll } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight, ArrowUpRight, Plus, Star, Search, CalendarCheck,
@@ -9,9 +9,17 @@ import CoachCard from '../components/CoachCard';
 import PageTransition from '../components/PageTransition';
 import AnimatedCounter from '../components/AnimatedCounter';
 import { SPRING, EASE_OUT } from '../tokens';
+import { useI18n } from '../i18n';
 import {
   BaseballField, Baseball, Bat, MeshCard, FloatingSpheres, Eyebrow, InteractiveBaseballField,
 } from '../components/visuals';
+import { MOCK_COACHES } from './CoachesPage';
+
+const SPECIALTY_COUNTS: Record<string, number> = MOCK_COACHES.reduce((acc, c) => {
+  acc[c.specialty] = (acc[c.specialty] || 0) + 1;
+  if (c.secondary_specialty) acc[c.secondary_specialty] = (acc[c.secondary_specialty] || 0) + 1;
+  return acc;
+}, {} as Record<string, number>);
 
 /* ─── Reveal helper ─────────────────────────────────────────────── */
 function Reveal({
@@ -195,7 +203,15 @@ function FeatureSection({
         <div className={`grid lg:grid-cols-2 gap-12 lg:gap-20 items-center ${reverse ? 'lg:[direction:rtl]' : ''}`}>
           <Reveal className={reverse ? 'lg:[direction:ltr]' : ''}>
             <Eyebrow>{eyebrow}</Eyebrow>
-            <h2 className="display-lg mt-5 mb-5">{title}</h2>
+            <h2 className="display-lg mt-5 mb-3">{title}</h2>
+            <motion.div
+              className="h-px mb-5 origin-left"
+              style={{ background: 'var(--line-strong)', width: 64 }}
+              initial={{ scaleX: 0 }}
+              whileInView={{ scaleX: 1 }}
+              viewport={{ once: true, margin: '-80px' }}
+              transition={{ duration: 0.7, delay: 0.15, ease: EASE_OUT }}
+            />
             <p className="text-base md:text-lg leading-relaxed mb-6 max-w-md" style={{ color: 'var(--ink-soft)' }}>{intro}</p>
             <div>
               {points.map((p) => <React.Fragment key={p.title}><FeaturePoint title={p.title} detail={p.detail} /></React.Fragment>)}
@@ -307,10 +323,88 @@ function MessagingMock() {
   );
 }
 
+/* ─── Headline line reveal (clip-mask rise) ─────────────────────── */
+function LineReveal({ lines, className = '' }: { lines: string[]; className?: string }) {
+  const reduce = useReducedMotion();
+  return (
+    <h1 className={className}>
+      {lines.map((ln, i) => (
+        <span key={i} className="block overflow-hidden" style={{ paddingBottom: '0.2em', marginBottom: '-0.14em' }}>
+          <motion.span
+            className="block"
+            initial={reduce ? { opacity: 0 } : { y: '120%' }}
+            animate={reduce ? { opacity: 1 } : { y: 0 }}
+            transition={{ duration: 0.85, delay: 0.12 + i * 0.12, ease: EASE_OUT }}
+          >
+            {ln}
+          </motion.span>
+        </span>
+      ))}
+    </h1>
+  );
+}
+
+/* ─── Hero visual: pointer parallax + ball-landing entrance ──────── */
+function HeroVisual() {
+  const reduce = useReducedMotion();
+  const px = useMotionValue(0);
+  const py = useMotionValue(0);
+  const sx = useSpring(px, { stiffness: 60, damping: 18 });
+  const sy = useSpring(py, { stiffness: 60, damping: 18 });
+  const fieldX = useTransform(sx, v => v * 0.6);
+  const fieldY = useTransform(sy, v => v * 0.6);
+  const sphX = useTransform(sx, v => v * 1.7);
+  const sphY = useTransform(sy, v => v * 1.7);
+
+  const onMove = (e: React.MouseEvent) => {
+    if (reduce) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    px.set(((e.clientX - r.left) / r.width - 0.5) * 26);
+    py.set(((e.clientY - r.top) / r.height - 0.5) * 26);
+  };
+  const onLeave = () => { px.set(0); py.set(0); };
+
+  return (
+    <motion.div
+      className="relative"
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.9, delay: 0.2, ease: EASE_OUT }}
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+    >
+      <MeshCard className="relative aspect-square md:aspect-[4/3.4] p-6 overflow-hidden">
+        <motion.div className="absolute inset-0" style={{ x: sphX, y: sphY }}>
+          <FloatingSpheres spheres={[
+            { size: 90, color: 'rgba(173,197,215,0.7)', top: '-3%', right: '8%', drift: 16 },
+            { size: 70, color: 'rgba(219,167,132,0.6)', bottom: '6%', left: '-2%', delay: 1, drift: 14 },
+          ]} />
+        </motion.div>
+        <motion.div className="relative h-full w-full" style={{ x: fieldX, y: fieldY }}>
+          <BaseballField variant="hero" className="h-full w-full" />
+        </motion.div>
+        {!reduce && (
+          <motion.div
+            aria-hidden
+            className="absolute left-1/2 pointer-events-none"
+            style={{ bottom: '16%', x: '-50%' }}
+            initial={{ y: -170, opacity: 0 }}
+            animate={{ y: [-170, -170, 0, -16, 0], opacity: [0, 1, 1, 1, 1] }}
+            transition={{ duration: 1.15, delay: 0.2, times: [0, 0.06, 0.62, 0.82, 1], ease: 'easeIn' }}
+          >
+            <Baseball size={32} />
+          </motion.div>
+        )}
+      </MeshCard>
+    </motion.div>
+  );
+}
+
 /* ─── MAIN ──────────────────────────────────────────────────────── */
 export default function LandingPage() {
   const reduce = useReducedMotion();
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   return (
     <PageTransition>
@@ -325,29 +419,22 @@ export default function LandingPage() {
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE_OUT }}>
                   <Eyebrow>San Diego baseball coaching</Eyebrow>
                 </motion.div>
-                <motion.h1
-                  className="display-xl mt-6 mb-6"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.8, delay: 0.08, ease: EASE_OUT }}
-                >
-                  Find the coach<br />who gets your game
-                </motion.h1>
+                <LineReveal className="display-xl mt-6 mb-6" lines={[t('hero.title1'), t('hero.title2')]} />
                 <motion.p
                   className="text-lg leading-relaxed max-w-md mb-8"
                   style={{ color: 'var(--ink-soft)' }}
                   initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.7, delay: 0.2, ease: EASE_OUT }}
                 >
-                  Book sessions with elite, vetted specialists in hitting, pitching, fielding, and strength — for exactly the part of your game you want to master.
+                  {t('hero.sub')}
                 </motion.p>
                 <motion.div
                   className="flex flex-col sm:flex-row gap-3"
                   initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.7, delay: 0.32, ease: EASE_OUT }}
                 >
-                  <Link to="/coaches" className="btn-primary"><Search size={17} /> Browse coaches</Link>
-                  <Link to="/auth" className="btn-secondary">Join as a coach</Link>
+                  <Link to="/coaches" className="btn-primary"><Search size={17} /> {t('hero.browse')}</Link>
+                  <Link to="/auth" className="btn-secondary">{t('hero.join')}</Link>
                 </motion.div>
 
                 {/* Affiliation strip */}
@@ -355,32 +442,26 @@ export default function LandingPage() {
                   className="mt-12"
                   initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.5 }}
                 >
-                  <p className="text-[11px] uppercase tracking-[0.14em] mb-4" style={{ color: 'var(--ink-faint)' }}>Coaches affiliated with</p>
-                  <div className="flex flex-wrap items-center gap-6">
+                  <p className="text-[11px] uppercase tracking-[0.14em] mb-4" style={{ color: 'var(--ink-faint)' }}>{t('hero.affiliated')}</p>
+                  <motion.div
+                    className="flex flex-wrap items-center gap-6"
+                    variants={{ visible: { transition: { staggerChildren: 0.08, delayChildren: 0.6 } } }}
+                    initial="hidden"
+                    animate="visible"
+                  >
                     {AFFILIATIONS.map((a) => (
-                      <img key={a.alt} src={a.src} alt={a.alt} className="h-7 w-auto object-contain" loading="lazy" referrerPolicy="no-referrer" />
+                      <motion.img
+                        key={a.alt} src={a.src} alt={a.alt} className="h-7 w-auto object-contain"
+                        loading="lazy" referrerPolicy="no-referrer"
+                        variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0, transition: { ...SPRING } } }}
+                      />
                     ))}
-                  </div>
+                  </motion.div>
                 </motion.div>
               </div>
 
               {/* Visual */}
-              <motion.div
-                className="relative"
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.9, delay: 0.2, ease: EASE_OUT }}
-              >
-                <MeshCard className="relative aspect-square md:aspect-[4/3.4] p-6">
-                  <FloatingSpheres spheres={[
-                    { size: 90, color: 'rgba(173,197,215,0.7)', top: '-3%', right: '8%', drift: 16 },
-                    { size: 70, color: 'rgba(219,167,132,0.6)', bottom: '6%', left: '-2%', delay: 1, drift: 14 },
-                  ]} />
-                  <div className="relative h-full w-full">
-                    <BaseballField variant="hero" className="h-full w-full" />
-                  </div>
-                </MeshCard>
-              </motion.div>
+              <HeroVisual />
             </div>
           </div>
         </section>
@@ -408,6 +489,7 @@ export default function LandingPage() {
                 <div className="relative h-full w-full">
                   <InteractiveBaseballField
                     onSelect={(slug) => navigate(`/coaches?specialty=${slug}`)}
+                    counts={SPECIALTY_COUNTS}
                     className="h-full w-full"
                   />
                 </div>
@@ -632,46 +714,48 @@ export default function LandingPage() {
         </section>
 
         {/* ── BOTTOM CTA ── */}
-        <section className="relative py-28 md:py-40 overflow-hidden">
-          {/* Bat (left) + Ball (right) drifting toward center */}
-          <motion.div
-            aria-hidden
-            className="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 z-0"
-            initial={reduce ? {} : { x: -40, opacity: 0 }}
-            whileInView={{ x: 0, opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 1, ease: EASE_OUT }}
-          >
-            <Bat size={340} className="opacity-90" />
-          </motion.div>
-          <motion.div
-            aria-hidden
-            className="hidden md:block absolute right-[6%] top-1/2 -translate-y-1/2 z-0"
-            initial={reduce ? {} : { x: 40, opacity: 0 }}
-            whileInView={{ x: 0, opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 1, ease: EASE_OUT }}
-          >
-            <Baseball size={130} className="opacity-90" />
-          </motion.div>
-
-          <div className="max-w-3xl mx-auto px-4 text-center relative z-10">
-            <Reveal>
-              <Eyebrow>Get started</Eyebrow>
-              <h2 className="display-xl mt-6 mb-6">Give every player<br />a path to the<br />next level</h2>
-              <p className="text-lg max-w-md mx-auto mb-10" style={{ color: 'var(--ink-soft)' }}>
-                Join San Diego players already training with the best specialists in the game.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Link to="/coaches" className="btn-primary"><Search size={17} /> Get started</Link>
-                <Link to="/auth" className="btn-secondary">Join as a coach <ArrowUpRight size={16} /></Link>
-              </div>
-            </Reveal>
-          </div>
-        </section>
+        <BottomCTA />
 
       </div>
     </PageTransition>
+  );
+}
+
+/* ─── Bottom CTA with scroll-linked bat + ball ──────────────────── */
+function BottomCTA() {
+  const reduce = useReducedMotion();
+  const ref = React.useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'center center'] });
+  // As the section scrolls into view, bat & ball glide toward center, then just miss.
+  const batX = useTransform(scrollYProgress, [0, 1], [reduce ? 0 : -120, 0]);
+  const ballX = useTransform(scrollYProgress, [0, 1], [reduce ? 0 : 140, 0]);
+  const fade = useTransform(scrollYProgress, [0, 0.4, 1], [0, 0.6, 0.95]);
+
+  return (
+    <section ref={ref} className="relative py-28 md:py-40 overflow-hidden">
+      <motion.div aria-hidden className="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 z-0"
+        style={{ x: batX, opacity: fade }}>
+        <Bat size={340} />
+      </motion.div>
+      <motion.div aria-hidden className="hidden md:block absolute right-[6%] top-1/2 -translate-y-1/2 z-0"
+        style={{ x: ballX, opacity: fade }}>
+        <Baseball size={130} />
+      </motion.div>
+
+      <div className="max-w-3xl mx-auto px-4 text-center relative z-10">
+        <Reveal>
+          <Eyebrow>Get started</Eyebrow>
+          <h2 className="display-xl mt-6 mb-6">Give every player<br />a path to the<br />next level</h2>
+          <p className="text-lg max-w-md mx-auto mb-10" style={{ color: 'var(--ink-soft)' }}>
+            Join San Diego players already training with the best specialists in the game.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link to="/coaches" className="btn-primary"><Search size={17} /> Get started</Link>
+            <Link to="/auth" className="btn-secondary">Join as a coach <ArrowUpRight size={16} /></Link>
+          </div>
+        </Reveal>
+      </div>
+    </section>
   );
 }
 

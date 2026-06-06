@@ -1,31 +1,53 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { GoogleGenAI } from "@google/genai";
-import { Send, Bot, User, Loader2, MessageSquare, X } from 'lucide-react';
+import { Send, Bot, User, Loader2, MessageSquare, X, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { MOCK_COACHES } from '../pages/CoachesPage';
 
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
-const SYSTEM_INSTRUCTION = `You are the CoachGo AI Support Agent.
+const COACH_ROSTER = MOCK_COACHES.map(c =>
+  `#${c.id} ${c.name} — ${c.specialty}${c.secondary_specialty ? '/' + c.secondary_specialty : ''}, $${c.price_per_session}/session, ${c.city}`
+).join('\n');
+
+const SYSTEM_INSTRUCTION = `You are the CoachGo AI Concierge.
 CoachGo is the premier marketplace for specialized baseball instruction in San Diego.
-Your goal is to help players find the right coaches and answer questions about the platform.
+Your goal is to help players find the right coach AND take action for them.
 
 Key Information:
 - Specialties: Hitting, Pitching, Fielding, Strength Training.
 - Mission: Connect players with specialized coaches who live and breathe their discipline.
 - Founder: Yuvraj Jindal, a Del Norte High School Varsity baseball player.
-- Features: 1-on-1 private sessions, group sessions (available with Robert Congalton, Casey Henderson, and Brandon Decker only), easy booking, and transparent coach profiles.
-- Support: Help with booking issues, finding coaches by specialty, or general platform questions.
+- Features: 1-on-1 private sessions, group sessions (with Robert Congalton, Casey Henderson, and Brandon Decker only), easy booking, transparent coach profiles. Payment is via Venmo after the coach confirms.
 - Contact: coachgonline@gmail.com
 
-Tone: Professional, encouraging, knowledgeable about baseball, and helpful. Keep responses concise — 2-3 sentences max unless a detailed answer is needed.
-If you don't know an answer, suggest they email coachgonline@gmail.com.`;
+Coaches you can recommend (use the id in actions):
+${COACH_ROSTER}
+
+ACTION PROTOCOL — you can give the player ONE tappable button.
+When it helps (they want to book, open a coach, or browse a discipline), append on a NEW FINAL LINE exactly one token in this format:
+[[ACTION|Button label|/path]]
+Valid paths:
+- /coaches  (browse all)
+- /coaches?specialty=hitting  (or pitching, fielding, strength)
+- /coaches/<id>  (open a specific coach's profile)
+- /book/<id>  (start booking a specific coach — they'll sign in if needed)
+Rules: include at most one token, only when useful; write a natural sentence first; NEVER mention or explain the token.
+
+Tone: professional, encouraging, knowledgeable about baseball. Keep responses to 2-3 sentences.
+If you don't know an answer, suggest emailing coachgonline@gmail.com.`;
 
 interface Message {
   role: 'user' | 'model';
   text: string;
+  action?: { label: string; path: string };
 }
 
+const ACTION_RE = /\[\[ACTION\|([^|]+)\|([^\]]+)\]\]/;
+
 export default function SupportAIChat() {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
@@ -59,8 +81,11 @@ export default function SupportAIChat() {
       });
 
       const response = await chat.sendMessage({ message: userMessage });
-      const text = response.text || "I'm sorry, I couldn't process that. Please try again.";
-      setMessages(prev => [...prev, { role: 'model', text }]);
+      const raw = response.text || "I'm sorry, I couldn't process that. Please try again.";
+      const m = raw.match(ACTION_RE);
+      const text = (m ? raw.replace(m[0], '') : raw).trim();
+      const action = m ? { label: m[1].trim(), path: m[2].trim() } : undefined;
+      setMessages(prev => [...prev, { role: 'model', text, action }]);
     } catch (error) {
       console.error("AI Chat Error:", error);
       setMessages(prev => [...prev, { role: 'model', text: "Sorry, I'm having trouble connecting right now. Please email coachgonline@gmail.com for help." }]);
@@ -130,14 +155,25 @@ export default function SupportAIChat() {
                       }}>
                       {m.role === 'user' ? <User size={12} /> : <Bot size={12} />}
                     </div>
-                    {/* Bubble */}
-                    <div className={`p-3 rounded-2xl text-xs leading-relaxed ${m.role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}`}
-                      style={{
-                        background: m.role === 'user' ? '#1B1813' : 'rgba(27,24,19,0.07)',
-                        color: m.role === 'user' ? 'white' : 'rgba(27,24,19,0.85)',
-                        border: m.role !== 'user' ? '1px solid rgba(27,24,19,0.08)' : 'none',
-                      }}>
-                      {m.text}
+                    {/* Bubble + optional action */}
+                    <div className="flex flex-col gap-2 items-start">
+                      <div className={`p-3 rounded-2xl text-xs leading-relaxed ${m.role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}`}
+                        style={{
+                          background: m.role === 'user' ? '#1B1813' : 'rgba(27,24,19,0.07)',
+                          color: m.role === 'user' ? 'white' : 'rgba(27,24,19,0.85)',
+                          border: m.role !== 'user' ? '1px solid rgba(27,24,19,0.08)' : 'none',
+                        }}>
+                        {m.text}
+                      </div>
+                      {m.action && (
+                        <button
+                          onClick={() => { setIsOpen(false); navigate(m.action!.path); }}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs transition-colors"
+                          style={{ background: '#1B1813', color: '#F6F4EF' }}
+                        >
+                          {m.action.label} <ArrowRight size={13} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

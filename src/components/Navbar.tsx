@@ -5,6 +5,8 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { LogOut, LayoutDashboard, Menu, X, MessageSquare, UserCircle } from 'lucide-react';
 import { motion, AnimatePresence, useScroll, useTransform, useReducedMotion } from 'framer-motion';
 import { SPRING } from '../tokens';
+import NotificationBell from './NotificationBell';
+import { useI18n } from '../i18n';
 
 export default function Navbar() {
   const [user] = useAuthState(auth);
@@ -22,10 +24,11 @@ export default function Navbar() {
 
   const handleLogout = async () => { await auth.signOut(); navigate('/'); };
 
+  const { t } = useI18n();
   const navLinks = [
-    { name: 'Home',    path: '/' },
-    { name: 'Coaches', path: '/coaches' },
-    { name: 'About',   path: '/about' },
+    { name: t('nav.home'),    path: '/' },
+    { name: t('nav.coaches'), path: '/coaches' },
+    { name: t('nav.about'),   path: '/about' },
   ];
 
   const isActive = (path: string) => {
@@ -86,6 +89,10 @@ export default function Navbar() {
             ))}
           </div>
 
+          {/* Right cluster */}
+          <div className="flex items-center gap-1">
+          {user && <NotificationBell />}
+
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-2">
             {user ? (
@@ -123,9 +130,9 @@ export default function Navbar() {
                   className="text-sm px-3.5 py-2 rounded-full transition-colors hover:bg-[rgba(27,24,19,0.05)]"
                   style={{ color: 'var(--ink)' }}
                 >
-                  Sign in
+                  {t('nav.signin')}
                 </Link>
-                <Link to="/auth" className="btn-primary py-2 px-5 text-sm">Get started</Link>
+                <Link to="/auth" className="btn-primary py-2 px-5 text-sm">{t('nav.getStarted')}</Link>
               </>
             )}
           </div>
@@ -149,6 +156,7 @@ export default function Navbar() {
               )}
             </AnimatePresence>
           </button>
+          </div>
         </div>
       </div>
 
@@ -210,10 +218,10 @@ export default function Navbar() {
                 ) : (
                   <>
                     <motion.div custom={navLinks.length} variants={mobileItemVariants} initial="hidden" animate="visible">
-                      <Link to="/auth" className="btn-secondary w-full text-center py-3 block">Sign in</Link>
+                      <Link to="/auth" className="btn-secondary w-full text-center py-3 block">{t('nav.signin')}</Link>
                     </motion.div>
                     <motion.div custom={navLinks.length + 1} variants={mobileItemVariants} initial="hidden" animate="visible">
-                      <Link to="/auth" className="btn-primary w-full text-center py-3 block">Get started</Link>
+                      <Link to="/auth" className="btn-primary w-full text-center py-3 block">{t('nav.getStarted')}</Link>
                     </motion.div>
                   </>
                 )}

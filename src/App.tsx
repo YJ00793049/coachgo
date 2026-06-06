@@ -10,6 +10,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 import SupportAIChat from './components/SupportAIChat';
 import ScrollProgressBar from './components/ScrollProgressBar';
 import GrainOverlay from './components/GrainOverlay';
+import MaintenanceBanner from './components/MaintenanceBanner';
+import { LanguageProvider } from './i18n';
 import { AnimatePresence } from 'framer-motion';
 
 // Eagerly loaded (small/critical)
@@ -116,9 +118,17 @@ export default function App() {
       <GrainOverlay />
 
       <ScrollToTop />
+      <LanguageProvider>
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[10000] focus:px-4 focus:py-2 focus:rounded-full"
+        style={{ background: '#16130E', color: '#F6F4EF' }}
+      >
+        Skip to content
+      </a>
       <div className="flex flex-col min-h-screen">
         <Navbar />
-        <main className="flex-grow flex flex-col">
+        <main id="main" className="flex-grow flex flex-col">
           <ErrorBoundary>
             <AnimatedRoutes />
           </ErrorBoundary>
@@ -126,6 +136,8 @@ export default function App() {
         <SupportAIChat />
         <Footer />
       </div>
+      <MaintenanceBanner />
+      </LanguageProvider>
     </Router>
   );
 }

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useI18n, LanguageSwitcher } from '../i18n';
 
 const InstagramIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -16,10 +17,11 @@ const XIcon = () => (
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
+  const { t } = useI18n();
 
   const columns = [
     {
-      title: 'Platform',
+      title: t('footer.platform'),
       links: [
         { label: 'Find a Coach', to: '/coaches' },
         { label: 'About Us', to: '/about' },
@@ -28,7 +30,7 @@ export default function Footer() {
       ],
     },
     {
-      title: 'Specialties',
+      title: t('footer.specialties'),
       links: [
         { label: 'Hitting', to: '/coaches?specialty=hitting' },
         { label: 'Pitching', to: '/coaches?specialty=pitching' },
@@ -37,7 +39,7 @@ export default function Footer() {
       ],
     },
     {
-      title: 'Support',
+      title: t('footer.support'),
       links: [
         { label: 'Help Center', to: '/help' },
         { label: 'Contact Us', to: '/contact' },
@@ -58,7 +60,7 @@ export default function Footer() {
               CoachGo
             </span>
             <p className="text-sm leading-relaxed max-w-xs" style={{ color: 'var(--ink-soft)' }}>
-              San Diego's marketplace for specialized baseball instruction — hitting, pitching, fielding, and strength, with vetted coaches.
+              {t('footer.blurb')}
             </p>
             <p className="text-xs tracking-wide" style={{ color: 'var(--ink-faint)' }}>
               San Diego, California
@@ -129,9 +131,7 @@ export default function Footer() {
             <Link to="/terms" className="text-xs transition-colors hover:text-[var(--ink)]" style={{ color: 'var(--ink-faint)' }}>
               Terms
             </Link>
-            <p className="text-xs" style={{ color: 'var(--ink-faint)' }}>
-              Built in San Diego
-            </p>
+            <LanguageSwitcher />
           </div>
         </div>
       </div>

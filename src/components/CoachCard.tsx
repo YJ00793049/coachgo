@@ -80,7 +80,7 @@ export default function CoachCard({ coach }: CoachCardProps) {
           {coach.bio}
         </p>
         <div className="flex items-center justify-between pt-4" style={{ borderTop: '1px solid var(--line)' }}>
-          <div>
+          <div className="transition-transform duration-300 group-hover:-translate-y-0.5">
             <span className="text-[11px] uppercase tracking-wider block" style={{ color: 'var(--ink-faint)' }}>Starting at</span>
             <span className="font-display text-2xl" style={{ color: 'var(--ink)' }}>${coach.price_per_session}</span>
             <span className="text-xs ml-1" style={{ color: 'var(--ink-faint)' }}>/ session</span>

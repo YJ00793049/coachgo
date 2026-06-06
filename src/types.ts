@@ -59,6 +59,7 @@ export interface CoachProfile {
   // ── Supply-side tools ──
   promo_codes?: PromoCode[];
   academy_name?: string;             // facility / academy this coach belongs to
+  gallery_urls?: string[];           // extra profile photos
 }
 
 export interface SessionPackage {

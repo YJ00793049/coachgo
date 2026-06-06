@@ -84,6 +84,9 @@ export default function CoachEditProfilePage() {
   const [isVideoUploading, setIsVideoUploading] = useState(false);
   const [videoUploadProgress, setVideoUploadProgress] = useState(0);
   const videoRecordRef = useRef<HTMLInputElement>(null);
+  const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const videoUploadRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState({
@@ -141,6 +144,7 @@ export default function CoachEditProfilePage() {
           });
           if (d.photo_url) setPhotoPreview(d.photo_url);
           if (d.video_url) setVideoUploadedUrl(d.video_url);
+          if (Array.isArray(d.gallery_urls)) setGalleryUrls(d.gallery_urls);
         }
       } catch (e) {
         handleFirestoreError(e, OperationType.GET, 'coach_profiles');
@@ -169,6 +173,18 @@ export default function CoachEditProfilePage() {
         async () => { const url = await getDownloadURL(uploadTask.snapshot.ref); setIsUploading(false); resolve(url); }
       );
     });
+  };
+
+  const handleGallerySelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (file.size > 5 * 1024 * 1024) { alert('Photo must be under 5MB'); return; }
+    setGalleryUploading(true);
+    const storageRef = ref(storage, `coach_photos/${user.uid}/gallery_${Date.now()}_${file.name}`);
+    const task = uploadBytesResumable(storageRef, file);
+    task.on('state_changed', () => {}, (err) => { console.error(err); setGalleryUploading(false); },
+      async () => { const url = await getDownloadURL(task.snapshot.ref); setGalleryUrls(g => [...g, url]); setGalleryUploading(false); });
+    e.target.value = '';
   };
 
   const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -246,6 +262,7 @@ export default function CoachEditProfilePage() {
         timezone: getBrowserTimezone(),
         academy_name: profile.academyName.trim() || null,
         promo_codes: profile.promoCodes,
+        gallery_urls: galleryUrls,
         is_active: true,
         updated_at: serverTimestamp(),
       }, { merge: true });
@@ -907,6 +924,38 @@ export default function CoachEditProfilePage() {
                 <Plus size={15} /> Add
               </button>
             </div>
+          </div>
+
+          {/* Photo gallery */}
+          <div className="rounded-3xl p-8" style={cardStyle}>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--paper-warm)', color: 'var(--ink)' }}>
+                <Camera size={20} />
+              </div>
+              <div>
+                <h2 className="font-bold text-ink">Photo gallery</h2>
+                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>Action shots & facility photos (shown on your profile)</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              {galleryUrls.map((url, i) => (
+                <div key={i} className="relative aspect-square rounded-xl overflow-hidden group" style={{ border: '1px solid var(--line)' }}>
+                  <img src={url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <button type="button" onClick={() => setGalleryUrls(g => g.filter((_, gi) => gi !== i))}
+                    aria-label="Remove photo"
+                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-opacity opacity-0 group-hover:opacity-100"
+                    style={{ background: 'rgba(22,19,14,0.8)', color: '#F6F4EF' }}>
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+              <button type="button" onClick={() => galleryInputRef.current?.click()} disabled={galleryUploading}
+                className="aspect-square rounded-xl flex flex-col items-center justify-center gap-1 transition-colors hover:bg-[rgba(27,24,19,0.04)] disabled:opacity-50"
+                style={{ border: '1px dashed var(--line-strong)', color: 'var(--ink-soft)' }}>
+                {galleryUploading ? <Loader2 size={20} className="animate-spin" /> : <><Plus size={20} /><span className="text-[10px] uppercase tracking-wide">Add</span></>}
+              </button>
+            </div>
+            <input ref={galleryInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleGallerySelect} className="hidden" />
           </div>
 
           {/* Video Intro */}

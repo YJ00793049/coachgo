@@ -7,6 +7,7 @@ import AnimatedCounter from '../components/AnimatedCounter';
 import { SPRING, SPRING_BOUNCY, EASE_OUT } from '../tokens';
 import { enabledLocationModes, LOCATION_MODE_META } from '../utils/scheduling';
 import { addRecentCoach } from '../utils/discovery';
+import { track } from '../utils/analytics';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../firebase';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, getDoc, orderBy, setDoc } from 'firebase/firestore';
@@ -78,6 +79,7 @@ export default function CoachProfilePage() {
             instant_book: d.instant_book === true,
             location_modes: d.location_modes,
             academy_name: d.academy_name || base?.academy_name,
+            gallery_urls: Array.isArray(d.gallery_urls) ? d.gallery_urls : base?.gallery_urls,
           } as CoachProfile);
           if (d.availability) setAvailability(d.availability);
         } else if (base) {
@@ -153,6 +155,7 @@ export default function CoachProfilePage() {
       created_at: serverTimestamp(),
     }).then(() => { try { sessionStorage.setItem(key, '1'); } catch { /* ignore */ } })
       .catch(() => { /* non-critical */ });
+    track('coach_view', { coach_id: coachUid });
   }, [coachUid, user]);
 
   if (loading) return (
@@ -277,9 +280,9 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
               <motion.div
                 className="relative shrink-0 w-[200px] h-[200px] rounded-[28px] overflow-hidden"
                 style={{ background: 'var(--card-cream)', border: '1px solid var(--line)', boxShadow: '0 20px 60px rgba(27,24,19,0.10)' }}
-                initial={{ opacity: 0, scale: 0.92 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ ...SPRING }}
+                initial={prefersReduced ? { opacity: 0 } : { opacity: 0, scale: 0.78, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 240, damping: 22 }}
               >
                 {coach.avatar_url ? (
                   <img src={coach.avatar_url} alt={coach.name} className="w-full h-full object-cover"
@@ -453,25 +456,53 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
                 return null;
               })()}
 
+              {coach.gallery_urls && coach.gallery_urls.length > 0 && (
+                <motion.section
+                  variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }}
+                  style={{ borderTop: '1px solid var(--line)', paddingTop: '3.5rem' }}
+                >
+                  <h2 className="display-md mb-6">Gallery</h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {coach.gallery_urls.map((url: string, i: number) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                        className="aspect-square rounded-2xl overflow-hidden block" style={{ border: '1px solid var(--line)' }}>
+                        <img src={url} alt={`${coach.name} ${i + 1}`} loading="lazy" referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
+                      </a>
+                    ))}
+                  </div>
+                </motion.section>
+              )}
+
               {coach.street_address && (
                 <motion.section
                   variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }}
                   style={{ borderTop: '1px solid var(--line)', paddingTop: '3.5rem' }}
                 >
                   <h2 className="display-md mb-6">Location</h2>
-                  <div className="p-7 rounded-3xl flex flex-col md:flex-row justify-between items-center gap-6 cg-card">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'var(--paper-warm)', color: 'var(--ink)' }}>
-                        <MapPin size={22} />
+                  <div className="rounded-3xl overflow-hidden cg-card">
+                    <div className="p-7 flex flex-col md:flex-row justify-between items-center gap-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'var(--paper-warm)', color: 'var(--ink)' }}>
+                          <MapPin size={22} />
+                        </div>
+                        <div>
+                          <h4 className="text-lg mb-1" style={{ color: 'var(--ink)' }}>{coach.street_address}</h4>
+                          <p style={{ color: 'var(--ink-soft)' }}>{coach.city}, {coach.state} {coach.zip_code}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-lg mb-1" style={{ color: 'var(--ink)' }}>{coach.street_address}</h4>
-                        <p style={{ color: 'var(--ink-soft)' }}>{coach.city}, {coach.state} {coach.zip_code}</p>
-                      </div>
+                      <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary flex items-center gap-2 py-3 px-6 shrink-0">
+                        <ExternalLink size={18} /> Get directions
+                      </a>
                     </div>
-                    <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary flex items-center gap-2 py-3 px-6">
-                      <ExternalLink size={18} /> Get directions
-                    </a>
+                    <iframe
+                      title="Coach location map"
+                      loading="lazy"
+                      className="w-full"
+                      style={{ border: 0, height: 260, borderTop: '1px solid var(--line)' }}
+                      referrerPolicy="no-referrer-when-downgrade"
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(`${coach.street_address || ''} ${coach.city || ''} ${coach.state || ''} ${coach.zip_code || ''}`)}&output=embed`}
+                    />
                   </div>
                 </motion.section>
               )}
@@ -661,6 +692,20 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
               </motion.div>
             </div>
 
+          </div>
+        </div>
+
+        {/* Sticky mobile booking bar */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40"
+          style={{ background: 'rgba(246,244,239,0.95)', borderTop: '1px solid var(--line)', backdropFilter: 'blur(10px)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          <div className="flex items-center gap-3 px-4 py-3" style={{ paddingRight: 88 }}>
+            <div className="shrink-0">
+              <p className="text-[11px] leading-none mb-1" style={{ color: 'var(--ink-faint)' }}>From</p>
+              <p className="font-display text-xl leading-none" style={{ color: 'var(--ink)' }}>${coach.price_per_session}</p>
+            </div>
+            <Link to={`/book/${coach.id}`} className="btn-primary flex-1 justify-center py-3">
+              {coach.instant_book ? 'Book instantly' : 'Book a session'}
+            </Link>
           </div>
         </div>
       </div>

@@ -8,6 +8,8 @@ import { SPRING, SPRING_BOUNCY } from '../tokens';
 import { db, auth } from '../firebase';
 import { collection, addDoc, serverTimestamp, getDoc, doc, getDocs, query, where } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import { notify } from '../utils/notifications';
+import { track } from '../utils/analytics';
 import { MOCK_COACHES } from './CoachesPage';
 import type { LocationMode, LocationModes, PromoCode } from '../types';
 import {
@@ -42,6 +44,7 @@ export default function BookingPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [dir, setDir] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const [availability, setAvailability] = useState<Record<string, string[]>>({});
@@ -270,8 +273,8 @@ export default function BookingPage() {
     }
   };
 
-  const nextStep = () => setStep(s => s + 1);
-  const prevStep = () => setStep(s => s - 1);
+  const nextStep = () => { setDir(1); setStep(s => s + 1); };
+  const prevStep = () => { setDir(-1); setStep(s => s - 1); };
 
   const steps = [
     { id: 1, title: 'Session Type' },
@@ -337,7 +340,7 @@ export default function BookingPage() {
 
             {/* STEP 1 — Session Type */}
             {step === 1 && (
-              <motion.div key="step1" initial={{ opacity: 0, x: prefersReduced ? 0 : 40 }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -40, transition: { duration: 0.18 } }}>
+              <motion.div key="step1" initial={{ opacity: 0, x: prefersReduced ? 0 : 40 * dir }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -40 * dir, transition: { duration: 0.18 } }}>
                 <h2 className="display-md mb-1">Select session type</h2>
                 {coach && <p className="text-sm mb-8" style={{ color: 'var(--ink-soft)' }}>with {coach.name}</p>}
                 <div className="space-y-3 mb-8">
@@ -424,7 +427,7 @@ export default function BookingPage() {
 
             {/* STEP 2 — Date & Time */}
             {step === 2 && (
-              <motion.div key="step2" initial={{ opacity: 0, x: prefersReduced ? 0 : 40 }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -40, transition: { duration: 0.18 } }}>
+              <motion.div key="step2" initial={{ opacity: 0, x: prefersReduced ? 0 : 40 * dir }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -40 * dir, transition: { duration: 0.18 } }}>
                 <h2 className="display-md mb-2">Select date & time</h2>
 
                 {/* Location mode */}
@@ -594,7 +597,7 @@ export default function BookingPage() {
 
             {/* STEP 3 — Player Info */}
             {step === 3 && (
-              <motion.div key="step3" initial={{ opacity: 0, x: prefersReduced ? 0 : 40 }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -40, transition: { duration: 0.18 } }}>
+              <motion.div key="step3" initial={{ opacity: 0, x: prefersReduced ? 0 : 40 * dir }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -40 * dir, transition: { duration: 0.18 } }}>
                 <h2 className="display-md mb-8">Player information</h2>
                 <div className="space-y-6">
                   <div>
@@ -674,7 +677,7 @@ export default function BookingPage() {
 
             {/* STEP 4 — Confirm */}
             {step === 4 && (
-              <motion.div key="step4" initial={{ opacity: 0, x: prefersReduced ? 0 : 40 }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -40, transition: { duration: 0.18 } }}>
+              <motion.div key="step4" initial={{ opacity: 0, x: prefersReduced ? 0 : 40 * dir }} animate={{ opacity: 1, x: 0, transition: { ...SPRING } }} exit={{ opacity: 0, x: prefersReduced ? 0 : -40 * dir, transition: { duration: 0.18 } }}>
                 <h2 className="display-md mb-8">Review & confirm</h2>
 
                 <div className="rounded-2xl mb-6 overflow-hidden" style={{ border: '1px solid var(--line)' }}>
@@ -890,6 +893,25 @@ export default function BookingPage() {
                         console.error('Email notification failed:', emailErr);
                       }
 
+                      track('booking_created', { coach_id: coach?.user_id ?? coachId, total_price: totalPrice, instant: instantBook, weeks });
+
+                      // In-app notifications
+                      const dateLabel = new Date(bookingData.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                      notify(coach?.user_id ?? coachId, {
+                        type: 'booking_request',
+                        title: instantBook ? 'New booking' : 'New booking request',
+                        body: `${bookingData.playerName} · ${bookingData.sessionType} · ${dateLabel} at ${bookingData.time}`,
+                        link: '/dashboard',
+                      });
+                      if (instantBook) {
+                        notify(auth.currentUser.uid, {
+                          type: 'booking_confirmed',
+                          title: `Confirmed with ${coach?.name ?? 'your coach'}`,
+                          body: `${bookingData.sessionType} · ${dateLabel} at ${bookingData.time}`,
+                          link: '/dashboard',
+                        });
+                      }
+
                       setStep(5);
                     } catch (error) {
                       handleFirestoreError(error, OperationType.CREATE, 'bookings');
@@ -987,6 +1009,7 @@ export default function BookingPage() {
                       href={buildVenmoUrl(coachVenmoHandle, totalPrice)}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={() => track('payment_clicked', { coach_id: coach?.user_id ?? coachId, amount: totalPrice })}
                       className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full text-sm transition-all hover:opacity-90 active:scale-[0.98]"
                       style={{ background: 'var(--c-venmo)', color: 'white' }}
                     >
