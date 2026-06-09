@@ -501,6 +501,7 @@ export default function DashboardPage() {
             date: booking.date,
             timeSlot: booking.time_slot,
             totalPrice: booking.total_price,
+            venmoHandle: booking.coach_venmo_handle || MOCK_COACHES.find(c => c.user_id === booking.coach_id)?.venmo_handle || undefined,
           });
         }
 

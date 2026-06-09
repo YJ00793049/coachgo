@@ -858,34 +858,50 @@ export default function BookingPage() {
                       }
 
                       try {
+                        const mail = await import('../utils/sendEmail');
+                        const sessionLabel = bookingData.sessionType + (weeks > 1 ? ` (weekly × ${weeks})` : '');
+
+                        // → Coach: new booking request (accept/decline)
                         const coachUserDoc = await getDoc(doc(db, 'users', coach?.user_id ?? coachId!));
                         const coachEmail = coachUserDoc.exists() ? coachUserDoc.data().email : null;
                         if (coachEmail) {
-                          const { notifyCoachNewBooking } = await import('../utils/sendEmail');
-                          await notifyCoachNewBooking({
+                          await mail.notifyCoachNewBooking({
                             coachEmail,
                             coachName: coach?.name ?? 'Coach',
                             playerName: bookingData.playerName,
-                            sessionType: bookingData.sessionType + (weeks > 1 ? ` (weekly × ${weeks})` : ''),
+                            sessionType: sessionLabel,
                             date: bookingData.date,
                             timeSlot: bookingData.time,
                             totalPrice,
+                            skillLevel: bookingData.skillLevel,
+                            notes: bookingData.notes,
+                            duration: '1 hour',
                           });
                         }
-                        // Instant book → also tell the player it's confirmed
-                        if (instantBook) {
-                          const playerDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
-                          const playerEmail = playerDoc.exists() ? playerDoc.data().email : auth.currentUser.email;
-                          if (playerEmail) {
-                            const { notifyPlayerBookingConfirmed } = await import('../utils/sendEmail');
-                            await notifyPlayerBookingConfirmed({
+
+                        // → Player: "request sent" (pending) or "confirmed + Venmo" (instant book)
+                        const playerDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+                        const playerEmail = playerDoc.exists() ? playerDoc.data().email : auth.currentUser.email;
+                        if (playerEmail) {
+                          if (instantBook) {
+                            await mail.notifyPlayerBookingConfirmed({
                               playerEmail,
                               playerName: bookingData.playerName,
                               coachName: coach?.name ?? 'Coach',
-                              sessionType: bookingData.sessionType,
+                              sessionType: sessionLabel,
                               date: bookingData.date,
                               timeSlot: bookingData.time,
                               totalPrice,
+                              venmoHandle: coachVenmoHandle || undefined,
+                            });
+                          } else {
+                            await mail.notifyPlayerBookingRequested({
+                              playerEmail,
+                              playerName: bookingData.playerName,
+                              coachName: coach?.name ?? 'Coach',
+                              sessionType: sessionLabel,
+                              date: bookingData.date,
+                              timeSlot: bookingData.time,
                             });
                           }
                         }
