@@ -152,13 +152,13 @@ export function BaseballField({
   const inkSoft = 'rgba(27,24,19,0.32)';
 
   // Diamond points
-  const home = [200, 310];
-  const first = [265, 245];
-  const second = [200, 180];
-  const third = [135, 245];
-  const mound = [200, 245];
+  const home = [200, 305];
+  const first = [275, 230];
+  const second = [200, 155];
+  const third = [125, 230];
+  const mound = [200, 230];
 
-  const baseSize = 7;
+  const baseSize = 8;
   const square = ([x, y]: number[]) =>
     `M ${x - baseSize} ${y} L ${x} ${y - baseSize} L ${x + baseSize} ${y} L ${x} ${y + baseSize} Z`;
 
@@ -174,18 +174,54 @@ export function BaseballField({
       aria-label="Animated baseball field diagram"
       style={{ display: 'block', width: '100%', height: '100%' }}
     >
+      {/* Outfield grass fill */}
+      <motion.path
+        d="M 200 305 L 16 121 A 260 260 0 0 1 384 121 Z"
+        fill="rgba(148,192,128,0.28)"
+        stroke="none"
+        initial={reduce ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={reduce ? { duration: 0 } : { delay: 0.05, duration: 1.5, ease: EASE_OUT }}
+      />
+      {/* Infield dirt fill */}
+      <motion.path
+        d="M 200 305 L 94 199 A 110 110 0 0 1 306 199 Z"
+        fill="rgba(210,158,108,0.42)"
+        stroke="none"
+        initial={reduce ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={reduce ? { duration: 0 } : { delay: 0.3, duration: 1.2, ease: EASE_OUT }}
+      />
+      {/* Diamond grass fill — same green as outfield */}
+      <motion.path
+        d={`M ${home[0]} ${home[1]} L ${first[0]} ${first[1]} L ${second[0]} ${second[1]} L ${third[0]} ${third[1]} Z`}
+        fill="rgba(148,192,128,0.28)"
+        stroke="none"
+        initial={reduce ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={reduce ? { duration: 0 } : { delay: 0.4, duration: 1.2, ease: EASE_OUT }}
+      />
       {/* Outfield arc — circular arc centered at home plate, endpoints on 45° foul lines */}
       <Draw
         reduce={reduce}
-        d="M 23 133 A 250 250 0 0 1 377 133"
+        d="M 16 121 A 260 260 0 0 1 384 121"
         stroke={inkSoft}
         width={1.5}
         delay={0.1}
         duration={1.8}
       />
       {/* Foul lines — from home through first/third base out to the outfield arc */}
-      <Draw reduce={reduce} d={`M ${home[0]} ${home[1]} L 23 133`} stroke={ink} delay={0.25} />
-      <Draw reduce={reduce} d={`M ${home[0]} ${home[1]} L 377 133`} stroke={ink} delay={0.25} />
+      <Draw reduce={reduce} d={`M ${home[0]} ${home[1]} L 16 121`} stroke={ink} delay={0.25} />
+      <Draw reduce={reduce} d={`M ${home[0]} ${home[1]} L 384 121`} stroke={ink} delay={0.25} />
+      {/* Infield arc — dirt/grass boundary, centered at mound, curving away from home */}
+      <Draw
+        reduce={reduce}
+        d="M 94 199 A 110 110 0 0 1 306 199"
+        stroke={inkSoft}
+        width={1.25}
+        delay={0.5}
+        duration={1.2}
+      />
       {/* Base paths (diamond) */}
       <Draw
         reduce={reduce}
@@ -208,7 +244,7 @@ export function BaseballField({
         transition={reduce ? { duration: 0 } : { delay: 1.0, duration: 0.6, ease: EASE_OUT }}
         style={{ transformOrigin: `${mound[0]}px ${mound[1]}px` }}
       />
-      <Draw reduce={reduce} d="M 194 245 L 206 245" stroke={ink} width={1.5} delay={1.3} duration={0.4} />
+      <Draw reduce={reduce} d="M 194 230 L 206 230" stroke={ink} width={1.5} delay={1.3} duration={0.4} />
 
       {/* Bases */}
       {[first, second, third].map((p, i) => (
