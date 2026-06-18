@@ -544,7 +544,7 @@ export default function LandingPage() {
         <FeatureSection
           eyebrow="Reviews"
           title={<>Train with<br />proven coaches</>}
-          intro="Ratings and reviews come from completed sessions only — and every coach’s average updates the moment a new review lands."
+          intro="Ratings and reviews come from verified, completed sessions only — and every coach’s average updates the moment a new review lands."
           points={[
             { title: 'Real player reviews', detail: 'Honest feedback from players who actually trained with each coach.' },
             { title: 'Live coach ratings', detail: 'Each coach’s star rating reflects their track record with real players.' },
