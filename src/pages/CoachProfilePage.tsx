@@ -396,7 +396,7 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, reviews, avgRati
                 {coach.affiliations && coach.affiliations.length > 0 && (
                   <div className="mt-12 pt-12" style={{ borderTop: '1px solid var(--line)' }}>
                     <h3 className="text-xs uppercase tracking-[0.14em] mb-8" style={{ color: 'var(--ink-faint)' }}>Professional affiliations</h3>
-                    <div className="overflow-x-hidden">
+                    <div className="[overflow-x:clip]">
                       <motion.div
                         className="flex gap-10 items-center cursor-grab active:cursor-grabbing pb-2"
                         drag="x"
