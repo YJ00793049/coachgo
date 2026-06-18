@@ -90,65 +90,37 @@ service cloud.firestore {
     }
 
     // ===============================================================
-    // Bookings
+    // Connections (player asks a coach to connect; coach reaches out directly)
     // ===============================================================
-    match /bookings/{bookingId} {
-      // Only the player or coach involved can read a booking
-      allow read: if isAuthenticated() &&
-        (request.auth.uid == resource.data.player_id ||
-         request.auth.uid == resource.data.coach_id ||
-         isAdmin());
+    match /connections/{connectionId} {
+      // The player who sent it, the coach it's addressed to, or admin can read.
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.player_id ||
+        request.auth.uid == resource.data.coach_user_id ||
+        isAdmin());
 
-      // Only authenticated players can create bookings for themselves.
-      // Status must be 'pending' (request-to-book) OR 'confirmed' when the coach
-      // has instant-book enabled on their profile.
+      // A player creates a connection request for themselves. It starts pending,
+      // and must carry at least one way for the coach to reach them.
       allow create: if isAuthenticated() &&
         request.resource.data.player_id == request.auth.uid &&
-        request.resource.data.keys().hasAll(['player_id', 'coach_id', 'session_type', 'date', 'time_slot', 'status', 'total_price']) &&
-        request.resource.data.total_price is number &&
-        request.resource.data.total_price > 0 &&
+        request.resource.data.keys().hasAll(['player_id', 'player_name', 'coach_id', 'coach_user_id', 'status', 'created_at']) &&
+        request.resource.data.status == 'pending' &&
         (
-          request.resource.data.status == 'pending' ||
-          (
-            request.resource.data.status == 'confirmed' &&
-            exists(/databases/$(database)/documents/coach_profiles/$(request.resource.data.coach_id)) &&
-            get(/databases/$(database)/documents/coach_profiles/$(request.resource.data.coach_id)).data.get('instant_book', false) == true
-          )
+          (request.resource.data.get('player_phone', '') is string && request.resource.data.get('player_phone', '') != '') ||
+          (request.resource.data.get('player_email', '') is string && request.resource.data.get('player_email', '') != '')
         );
 
-      // Player can cancel/reschedule their own bookings
-      // Coach can accept/decline/complete/handle reschedules
-      // Admin can do anything
+      // Only the coach it's addressed to (or admin) can accept/ignore.
+      // The player and coach ids are immutable; status moves to accepted/ignored.
       allow update: if isAuthenticated() && (
         isAdmin() ||
-        // Coach updating status of their own booking
-        (request.auth.uid == resource.data.coach_id &&
+        (request.auth.uid == resource.data.coach_user_id &&
          request.resource.data.player_id == resource.data.player_id &&
-         request.resource.data.coach_id == resource.data.coach_id &&
-         request.resource.data.status in ['confirmed', 'declined', 'completed']) ||
-        // Coach accepting a reschedule request (status: reschedule_requested → confirmed + updated date/time)
-        (request.auth.uid == resource.data.coach_id &&
-         resource.data.status == 'reschedule_requested' &&
-         request.resource.data.status == 'confirmed') ||
-        // Player cancelling their own pending booking
-        (request.auth.uid == resource.data.player_id &&
-         resource.data.status == 'pending' &&
-         request.resource.data.status == 'cancelled') ||
-        // Player cancelling their own confirmed booking
-        (request.auth.uid == resource.data.player_id &&
-         resource.data.status == 'confirmed' &&
-         request.resource.data.status == 'cancelled') ||
-        // Player requesting a reschedule on a confirmed booking
-        (request.auth.uid == resource.data.player_id &&
-         resource.data.status == 'confirmed' &&
-         request.resource.data.status == 'reschedule_requested') ||
-        // Player or coach setting the 24h reminder flag without changing status
-        (request.auth.uid in [resource.data.player_id, resource.data.coach_id] &&
-         request.resource.data.status == resource.data.status &&
-         request.resource.data.get('reminder_sent_24h', false) == true)
+         request.resource.data.coach_user_id == resource.data.coach_user_id &&
+         request.resource.data.status in ['accepted', 'ignored'])
       );
 
-      // Only admin can hard delete bookings
+      // Only admin can hard delete connections.
       allow delete: if isAdmin();
     }
 
@@ -238,34 +210,6 @@ service cloud.firestore {
 
       // No updates on favorites — delete and recreate
       allow update: if false;
-    }
-
-    // ===============================================================
-    // Waitlists (join when a slot is full / fully booked)
-    // ===============================================================
-    match /waitlists/{waitlistId} {
-      // The player who joined or the coach can read; admin can read all
-      allow read: if isAuthenticated() && (
-        resource.data.player_id == request.auth.uid ||
-        resource.data.coach_id == request.auth.uid ||
-        isAdmin());
-
-      // A player can add themselves to a waitlist
-      allow create: if isAuthenticated() &&
-        request.resource.data.player_id == request.auth.uid &&
-        request.resource.data.keys().hasAll(['coach_id', 'player_id', 'date', 'time_slot', 'session_type', 'created_at']);
-
-      // The coach can mark an entry as notified (no player/coach id change)
-      allow update: if isAuthenticated() &&
-        (request.auth.uid == resource.data.coach_id || isAdmin()) &&
-        request.resource.data.player_id == resource.data.player_id &&
-        request.resource.data.coach_id == resource.data.coach_id;
-
-      // Player can leave; coach/admin can clear
-      allow delete: if isAuthenticated() && (
-        resource.data.player_id == request.auth.uid ||
-        resource.data.coach_id == request.auth.uid ||
-        isAdmin());
     }
 
     // ===============================================================

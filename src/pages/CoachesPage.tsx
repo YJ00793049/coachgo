@@ -14,25 +14,24 @@ import {
   seenFlag, markSeen, type RecentCoach, type SavedSearch,
 } from '../utils/discovery';
 import { enabledLocationModes, LOCATION_MODE_META } from '../utils/scheduling';
+import { offeringLabels } from '../utils/offerings';
 import { Baseball } from '../components/visuals';
 
 export const MOCK_COACHES: CoachProfile[] = [
   {
     id: '1', user_id: 'Z6zXkui7gTdniYIUBQYpIKMcJfY2', name: 'Shim Jeong-soo', specialty: 'hitting',
-    venmo_handle: 'shimjeongsoo',
     bio: "• 5x Korean Series Champion (1995, 2003, 2004, 2005, 2006) — including four consecutive titles from 2003–2006\n• 53 HR & 142 RBI in 2003 — his best season, hitting .335 and leading the Hyundai Unicorns to a championship\n• 3x KBO Golden Glove Award (2002, 2003, 2007) — recognized as one of the league's top outfielders\n• Led the KBO in home runs and RBI in 2007 — with 31 HR and 101 RBI in his age-32 season\n• 328 career home runs — ranking 6th all-time in KBO League history",
     price_per_session: 120, rating: 4.9, skills: ['Swing Mechanics', 'Exit Velocity', 'Power Hitting', 'Mental Approach'],
-    reviews: 42, certifications: [], years_experience: 15, session_types: [], availability: {}, is_active: true,
+    reviews: 42, certifications: [], years_experience: 15, is_active: true,
     avatar_url: '/shim_new.png', avatar_position: 'top',
     street_address: 'Spring Canyon Neighborhood Park, 11011 Scripps Poway Pkwy', city: 'San Diego', state: 'CA', zip_code: '92131',
     affiliations: [{ name: 'KBO Hyundai Unicorns', logoUrl: '/unicorns.png' }, { name: 'KBO Samsung Lions', logoUrl: '/lions.png' }, { name: 'KBO Doosan Bears', logoUrl: '/doosan.png' }]
   },
   {
     id: '2', user_id: 'CUs50WIYsUbNYJhF1q3r273Vkcu2', name: 'Kris Benson', specialty: 'pitching',
-    venmo_handle: 'krisbenson',
     bio: "• #1 overall pick in the 1996 MLB Draft out of Clemson University\n• Consensus College Player of the Year & Dick Howser Trophy winner\n• 1996 Atlanta Summer Olympics bronze medalist\n• 13 professional seasons across six MLB franchises, 10+ years of Major League service\n• Roberto Clemente, Thurman Munson & Joan Payson Humanitarian Award recipient\n• Third season as Varsity Pitching Coach at Del Norte High School",
     price_per_session: 150, rating: 5.0, skills: ['Pitch Design', 'Command', 'Arm Health', 'Velocity Training'],
-    reviews: 28, certifications: [], years_experience: 12, session_types: [], availability: {}, is_active: true,
+    reviews: 28, certifications: [], years_experience: 12, is_active: true,
     avatar_url: '/krisbenson.webp', avatar_position: 'top',
     street_address: '16601 Nighthawk Ln', city: 'San Diego', state: 'CA', zip_code: '92127',
     affiliations: [
@@ -46,58 +45,53 @@ export const MOCK_COACHES: CoachProfile[] = [
   },
   {
     id: '3', user_id: 'PEZr6wb06YYLzc08MLUsq7B4PDo2', name: 'Casey Henderson', specialty: 'fielding',
-    venmo_handle: 'caseyhenderson',
     bio: "• First Team All-Pacific Coast Athletic Conference (2016) — earned top conference honors at Palomar College before transferring to California State University, Chico\n• All-CCAA Honorable Mention (2017) — recognized as one of the best players in the California Collegiate Athletic Association at shortstop\n• .625 Batting Average in the NCAA Championship Tournament West Regional — delivered his best baseball in the sport's biggest moments\n• First Team All-Palomar League, Second Team All-CIF, and Third Team All-State as a senior — one of the most decorated high school players in the San Diego area\n• Helped lead Rancho Bernardo High School to four league titles and a CIF championship — proven winner at every level of his career",
     price_per_session: 90, rating: 4.8, skills: ['Infield Drills', 'Footwork', 'Glove-work', 'Double Plays'],
-    reviews: 15, certifications: [], years_experience: 8, session_types: [], availability: {}, is_active: true,
+    reviews: 15, certifications: [], years_experience: 8, is_active: true, session_offerings: ['1-on-1', 'group'],
     avatar_url: '/caseyhenderson.webp', avatar_position: 'top',
     street_address: '789 Infield Dr', city: 'Poway', state: 'CA', zip_code: '92064',
     affiliations: [{ name: 'California State University, Chico', logoUrl: '/chico.png' }]
   },
   {
     id: '4', user_id: 'BKRGmiaM75hdsI0mauIUaEsbDXv2', name: 'Brandon Decker', specialty: 'hitting',
-    venmo_handle: 'brandondecker',
     bio: "• Former professional baseball player, played at San Diego State under Hall of Fame coach Tony Gwynn\n• 13+ years of coaching experience across all levels\n• WCC Championship at USD & MWC Championship at San Diego State University as assistant coach\n• 11th season as Varsity Assistant Coach at Del Norte High School\n• Founder of Trosky Force Travel Baseball program (7U–18U)\n• Owner of The Upper Deck Training Facility in Scripps Ranch—available to our players throughout the season",
     price_per_session: 100, rating: 4.7, skills: ['Swing Plane', 'Plate Discipline', 'Video Analysis'],
-    reviews: 19, certifications: [], years_experience: 6, session_types: [], availability: {}, is_active: true,
+    reviews: 19, certifications: [], years_experience: 6, is_active: true, session_offerings: ['1-on-1', 'group'],
     avatar_url: '/brandondecker.webp', avatar_position: 'top',
     street_address: '101 Batter Up Blvd', city: 'San Diego', state: 'CA', zip_code: '92014',
     affiliations: [{ name: 'San Diego State University', logoUrl: '/sdsu.png' }]
   },
   {
     id: '5', user_id: 'Mh33Uip3JOVvc1FryPwyhdf0X7g1', name: 'Brett Balkan', specialty: 'hitting',
-    venmo_handle: 'brettbalkan',
     bio: "• 5-sport varsity athlete at Carlsbad High School; earned First-Team All-American, First-Team All-Conference, and Rawlings Gold Glove honors at San Diego Mesa College before signing with California State University, Northridge on a baseball scholarship\n• Named All-Conference (Big West) and team Defensive Player of the Year at California State University, Northridge with a .982 fielding percentage at shortstop\n• Played 5 professional seasons in Independent Baseball, posting a .320 average, .427 OBP, 2 championships, 2 All-Star selections, and back-to-back Regular Season and Postseason MVP awards\n• 10 years of coaching experience as an infield and hitting coach at Rancho Bernardo and Mount Carmel High Schools, plus a decade of travel baseball coaching at all ages\n• Specializes in video analysis for hitting and infield instruction\n• B.A. in Communications, California State University, Northridge (2014); M.S. in Coaching & Athletic Administration, Concordia University Irvine (2019)",
     price_per_session: 85, rating: 4.6, skills: ['Elite Mechanics', 'Arm Path', 'Video Analysis', 'Balance'],
-    reviews: 12, certifications: [], years_experience: 5, session_types: [], availability: {}, is_active: true,
+    reviews: 12, certifications: [], years_experience: 5, is_active: true,
     avatar_url: '/brettbalkan.jpg', avatar_position: 'top',
     street_address: '202 Base Hit St', city: 'Escondido', state: 'CA', zip_code: '92025',
     affiliations: [{ name: 'California State University, Northridge', logoUrl: '/csun.png' }]
   },
   {
     id: '6', user_id: 'UDqp6R2PGkUUBwvyEfIbwMGudpk1', name: 'Chris Hyndman', specialty: 'pitching',
-    venmo_handle: 'chrishyndman',
     bio: 'Expert in velocity development and weighted ball programs. Specializes in helping pitchers add velocity while maintaining arm health and mechanics.',
     price_per_session: 110, rating: 4.9, skills: ['Mechanics', 'Balance', 'Power', 'Command'],
-    reviews: 31, certifications: [], years_experience: 9, session_types: [], availability: {}, is_active: true,
+    reviews: 31, certifications: [], years_experience: 9, is_active: true,
     avatar_url: 'https://picsum.photos/seed/hyndman/400/300',
     street_address: '3120 Rue Montreux', city: 'Escondido', state: 'CA', zip_code: '92026'
   },
   {
     id: '8', user_id: 'RwrKoCiodmdNn6afwjv9Xl69sBn1', name: 'Nick Rocha', specialty: 'fielding',
-    secondary_specialty: 'hitting', venmo_handle: 'nickrocha',
+    secondary_specialty: 'hitting',
     bio: 'Elite infielder coach focusing on footwork, glove-work, and transition speed.',
     price_per_session: 95, rating: 4.7, skills: ['Infield Footwork', 'Glove-work', 'Transition Speed', 'Range'],
-    reviews: 18, certifications: [], years_experience: 7, session_types: [], availability: {}, is_active: true,
+    reviews: 18, certifications: [], years_experience: 7, is_active: true,
     avatar_url: 'https://picsum.photos/seed/nickrocha/400/300',
     street_address: '505 Shortstop Way', city: 'San Marcos', state: 'CA', zip_code: '92069'
   },
   {
     id: '9', user_id: '7j9Yyu4A9SZu9Eap02VpszPYfsN2', name: 'Robert Congalton', specialty: 'strength',
-    venmo_handle: 'robertcongalton',
     bio: "• Co-owner of 1RM Performance — built a premier training facility in San Diego, establishing himself as a leading figure in the strength & sports performance community\n• Former Division 1 Javelin Thrower — competed at the highest level of collegiate athletics, bringing elite athlete experience to his coaching\n• Elite Strength Numbers — 445 lb bench, 455 lb squat, and 545 lb deadlift, demonstrating elite-level powerlifting credentials\n• Exceptional Athleticism — 35\" vertical, 9'8\" standing broad jump, and a 4.5 second 40-yard dash, showcasing rare combination of strength and explosiveness\n• DNS-Integrated Coaching System — developed a unique training methodology blending Dynamic Neuromuscular Stabilization with modern sports performance models, driving results for athletes both in the gym and on the field",
     price_per_session: 80, rating: 4.9, skills: ['Strength Training', 'Conditioning', 'Explosive Power', 'Injury Prevention'],
-    reviews: 35, certifications: [], years_experience: 10, session_types: [], availability: {}, is_active: true,
+    reviews: 35, certifications: [], years_experience: 10, is_active: true, session_offerings: ['1-on-1', 'group'],
     avatar_url: '/bobbycongalton.jpg',
     street_address: '4040 Sorrento Valley Blvd', city: 'San Diego', state: 'CA', zip_code: '92121',
     affiliations: [{ name: 'San Diego State University', logoUrl: '/sdsu.png' }]
@@ -123,7 +117,6 @@ export default function CoachesPage() {
   const prefersReduced = useReducedMotion();
 
   // ── Discovery state ──
-  const [availableNow, setAvailableNow] = useState(false);
   const priceBounds = useMemo(() => {
     const ps = coaches.map(c => c.price_per_session).filter(p => p > 0);
     return { min: ps.length ? Math.min(...ps) : 0, max: ps.length ? Math.max(...ps) : 200 };
@@ -149,11 +142,7 @@ export default function CoachesPage() {
 
   const priceActive = priceRange[0] > priceBounds.min || priceRange[1] < priceBounds.max;
   const anyFilter = !!searchQuery || specialtyFilter !== 'all' || locationFilter !== 'All Locations'
-    || sortOption !== 'default' || availableNow || priceActive;
-
-  const hasAvailability = (c: CoachProfile) =>
-    !!(c as any).instant_book ||
-    (c.availability && Object.values(c.availability).some((a: any) => Array.isArray(a) && a.length > 0));
+    || sortOption !== 'default' || priceActive;
 
   const toggleCompare = (id: string) => {
     setCompareIds(prev => prev.includes(id)
@@ -163,14 +152,14 @@ export default function CoachesPage() {
 
   const clearAll = () => {
     setSearchQuery(''); setSpecialtyFilter('all'); setLocationFilter('All Locations');
-    setSortOption('default'); setAvailableNow(false); setPriceRange([priceBounds.min, priceBounds.max]);
+    setSortOption('default'); setPriceRange([priceBounds.min, priceBounds.max]);
   };
 
   const handleSaveSearch = () => {
     const name = saveName.trim() || `${specialtyFilter === 'all' ? 'All' : specialtyFilter} · ${locationFilter}`;
     setSavedSearches(persistSearch(name, {
       searchQuery, specialty: specialtyFilter, location: locationFilter,
-      sort: sortOption, maxPrice: priceRange[1], availableNow,
+      sort: sortOption, maxPrice: priceRange[1],
     }));
     setShowSaveInput(false); setSaveName('');
   };
@@ -181,7 +170,6 @@ export default function CoachesPage() {
     setSpecialtyFilter(p.specialty || 'all');
     setLocationFilter(p.location || 'All Locations');
     setSortOption((p.sort as SortOption) || 'default');
-    setAvailableNow(!!p.availableNow);
     if (p.maxPrice != null) setPriceRange([priceBounds.min, p.maxPrice]);
   };
 
@@ -200,12 +188,11 @@ export default function CoachesPage() {
             const override: Partial<CoachProfile> = {};
             if (data.photo_url) override.avatar_url = data.photo_url;
             if (data.bio) override.bio = data.bio;
-            if (data.venmo_handle) override.venmo_handle = data.venmo_handle;
             if (data.video_url) override.video_url = data.video_url;
             if (data.price_per_session) override.price_per_session = data.price_per_session;
             if (data.name) override.name = data.name;
             if (data.academy_name) override.academy_name = data.academy_name;
-            if (data.session_types_with_price) (override as any).session_types_with_price = data.session_types_with_price;
+            if (Array.isArray(data.session_offerings)) override.session_offerings = data.session_offerings;
             if (Object.keys(override).length > 0) overrides[d.id] = override;
           } else if (data.specialty && data.is_active !== false) {
             newCoaches.push({
@@ -214,9 +201,10 @@ export default function CoachesPage() {
               bio: data.bio || '', price_per_session: data.price_per_session || 0,
               rating: data.rating || 0, skills: data.skills || [], reviews: data.reviews || 0,
               certifications: data.certifications || [], years_experience: data.years_experience || 0,
-              session_types: [], availability: data.availability || {}, is_active: true,
+              session_offerings: Array.isArray(data.session_offerings) ? data.session_offerings : undefined,
+              is_active: true,
               avatar_url: data.photo_url || undefined, city: data.city, state: data.state,
-              street_address: data.street_address, affiliations: [], venmo_handle: data.venmo_handle,
+              street_address: data.street_address, affiliations: [],
               video_url: data.video_url, academy_name: data.academy_name,
             });
           }
@@ -239,15 +227,14 @@ export default function CoachesPage() {
       const matchesSpecialty = specialtyFilter === 'all' || c.specialty === specialtyFilter || c.secondary_specialty === specialtyFilter;
       const matchesLocation = locationFilter === 'All Locations' || c.city === locationFilter;
       const matchesPrice = c.price_per_session >= priceRange[0] && c.price_per_session <= priceRange[1];
-      const matchesAvailable = !availableNow || hasAvailability(c);
       const matchesAcademy = !academyFilter || (c.academy_name || '') === academyFilter;
-      return matchesSearch && matchesSpecialty && matchesLocation && matchesPrice && matchesAvailable && matchesAcademy;
+      return matchesSearch && matchesSpecialty && matchesLocation && matchesPrice && matchesAcademy;
     });
     if (sortOption === 'price-asc')    filtered = [...filtered].sort((a, b) => a.price_per_session - b.price_per_session);
     if (sortOption === 'price-desc')   filtered = [...filtered].sort((a, b) => b.price_per_session - a.price_per_session);
     if (sortOption === 'rating-desc')  filtered = [...filtered].sort((a, b) => b.rating - a.rating);
     setFilteredCoaches(filtered);
-  }, [searchQuery, specialtyFilter, locationFilter, sortOption, coaches, priceRange, availableNow, academyFilter]);
+  }, [searchQuery, specialtyFilter, locationFilter, sortOption, coaches, priceRange, academyFilter]);
 
   const specialtyLabels: Record<string, string> = {
     all: 'All', hitting: 'Hitting', pitching: 'Pitching', fielding: 'Fielding', strength: 'Strength'
@@ -409,19 +396,6 @@ export default function CoachesPage() {
               <PriceRange min={priceBounds.min} max={priceBounds.max} value={priceRange} onChange={setPriceRange} />
             </div>
 
-            <button
-              type="button"
-              onClick={() => setAvailableNow(v => !v)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm transition-colors shrink-0"
-              style={{
-                background: availableNow ? 'var(--black)' : 'var(--card-cream)',
-                border: `1px solid ${availableNow ? 'var(--black)' : 'var(--line-strong)'}`,
-                color: availableNow ? 'var(--paper)' : 'var(--ink)',
-              }}
-            >
-              <Zap size={14} /> Available now
-            </button>
-
             <div className="flex-1" />
 
             {/* Save current search */}
@@ -554,9 +528,7 @@ export default function CoachesPage() {
                 </motion.div>
                 <h3 className="font-display text-2xl mb-2" style={{ color: 'var(--ink)' }}>No coaches match those filters</h3>
                 <p className="text-sm max-w-sm mx-auto mb-6" style={{ color: 'var(--ink-soft)' }}>
-                  {availableNow
-                    ? 'Try turning off “Available now,” widening the price range, or clearing a filter.'
-                    : 'Try a wider price range, a different specialty, or another location.'}
+                  Try a wider price range, a different specialty, or another location.
                 </p>
                 <button onClick={clearAll} className="btn-primary py-2.5 px-6 text-sm">Clear all filters</button>
               </motion.div>
@@ -653,8 +625,8 @@ function CompareModal({ coaches, onClose, navigate }: {
     { label: 'Rating', render: c => <span className="inline-flex items-center gap-1"><Star size={12} fill="var(--c-reschedule)" style={{ color: 'var(--c-reschedule)' }} />{c.rating?.toFixed(1)} ({c.reviews ?? 0})</span> },
     { label: 'Experience', render: c => <span>{c.years_experience ? `${c.years_experience}+ yrs` : '—'}</span> },
     { label: 'Location', render: c => <span>{c.city && c.state ? `${c.city}, ${c.state}` : '—'}</span> },
-    { label: 'Instant book', render: c => (c as any).instant_book ? <Check size={15} style={{ color: 'var(--c-confirmed)' }} /> : <span style={{ color: 'var(--ink-faint)' }}>—</span> },
-    { label: 'Sessions', render: c => <span>{(c as any).location_modes ? enabledLocationModes((c as any).location_modes).map((m: LocationMode) => LOCATION_MODE_META[m].short).join(', ') : 'In person'}</span> },
+    { label: 'Offers', render: c => <span>{offeringLabels(c.session_offerings).join(' · ')}</span> },
+    { label: 'Format', render: c => <span>{c.location_modes ? enabledLocationModes(c.location_modes).map((m: LocationMode) => LOCATION_MODE_META[m].short).join(', ') : 'In person'}</span> },
     { label: 'Top skills', render: c => <span className="text-xs">{(c.skills || []).slice(0, 3).join(' · ') || '—'}</span> },
   ];
   return (

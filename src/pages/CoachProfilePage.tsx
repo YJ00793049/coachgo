@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Star, Calendar, Shield, CheckCircle2, MapPin, ExternalLink, Heart, Loader2, X, MessageSquare, Zap } from 'lucide-react';
-import { motion, AnimatePresence, useScroll, useTransform, useReducedMotion } from 'framer-motion';
+import { Star, Shield, CheckCircle2, MapPin, ExternalLink, Heart, Loader2, MessageSquare, Link2 } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import PageTransition from '../components/PageTransition';
 import AnimatedCounter from '../components/AnimatedCounter';
-import { SPRING, SPRING_BOUNCY, EASE_OUT } from '../tokens';
+import ConnectModal from '../components/ConnectModal';
+import { SPRING } from '../tokens';
 import { enabledLocationModes, LOCATION_MODE_META } from '../utils/scheduling';
+import { offeringLabels } from '../utils/offerings';
 import { addRecentCoach } from '../utils/discovery';
 import { track } from '../utils/analytics';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, getDoc, orderBy, setDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, getDoc, orderBy } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 import { MOCK_COACHES } from './CoachesPage';
 import { CoachProfile } from '../types';
@@ -34,9 +36,9 @@ export default function CoachProfilePage() {
   const [favoriteId, setFavoriteId] = useState<string | null>(null);
   const [coach, setCoach] = useState<CoachProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [availability, setAvailability] = useState<Record<string, string[]>>({});
   const [reviews, setReviews] = useState<Review[]>([]);
   const [avgRating, setAvgRating] = useState<number | null>(null);
+  const [connectionAccepted, setConnectionAccepted] = useState(false);
 
   // Always fetch from Firestore and merge on top of hardcoded data
   useEffect(() => {
@@ -58,10 +60,9 @@ export default function CoachProfilePage() {
             certifications: d.certifications || base?.certifications || [],
             years_experience: d.years_experience || base?.years_experience || 0,
             price_per_session: d.price_per_session || base?.price_per_session || 0,
+            session_offerings: d.session_offerings || base?.session_offerings,
             rating: base?.rating || d.rating || 0,
             reviews: base?.reviews || d.reviews || 0,
-            session_types: d.session_types || base?.session_types || [],
-            availability: d.availability || {},
             is_active: d.is_active ?? base?.is_active ?? true,
             name: base?.name || d.name || 'Coach',
             // Firestore photo_url overrides hardcoded avatar_url
@@ -73,15 +74,11 @@ export default function CoachProfilePage() {
             zip_code: base?.zip_code || d.zip_code,
             skills: base?.skills || d.skills || [],
             affiliations: base?.affiliations || d.affiliations || [],
-            venmo_handle: d.venmo_handle || base?.venmo_handle,
             video_url: d.video_url || base?.video_url,
-            packages: d.packages || base?.packages,
-            instant_book: d.instant_book === true,
             location_modes: d.location_modes,
             academy_name: d.academy_name || base?.academy_name,
             gallery_urls: Array.isArray(d.gallery_urls) ? d.gallery_urls : base?.gallery_urls,
           } as CoachProfile);
-          if (d.availability) setAvailability(d.availability);
         } else if (base) {
           setCoach(base);
         }
@@ -109,6 +106,20 @@ export default function CoachProfilePage() {
     }, (err) => handleFirestoreError(err, OperationType.GET, 'favorites'));
     return () => unsub();
   }, [user, id]);
+
+  // Connection listener — drives messaging gating (only after coach accepts)
+  useEffect(() => {
+    if (!user || !coachUid) { setConnectionAccepted(false); return; }
+    const q = query(
+      collection(db, 'connections'),
+      where('player_id', '==', user.uid),
+      where('coach_user_id', '==', coachUid)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setConnectionAccepted(snap.docs.some(d => (d.data() as any).status === 'accepted'));
+    }, () => { /* non-critical */ });
+    return () => unsub();
+  }, [user, coachUid]);
 
   // Reviews listener
   useEffect(() => {
@@ -199,16 +210,7 @@ export default function CoachProfilePage() {
     ? `https://maps.apple.com/?q=${addressQuery}`
     : `https://www.google.com/maps/search/?api=1&query=${addressQuery}`;
 
-
-  const sessionTypes: { label: string; price?: number }[] = (coach as any).session_types_with_price?.length > 0
-    ? (coach as any).session_types_with_price.map((s: any) => ({ label: s.label, price: s.price }))
-    : [
-        { label: '1-on-1 Private', price: coach.price_per_session },
-        ...(['Robert Congalton', 'Casey Henderson', 'Brandon Decker'].includes(coach.name || '')
-          ? [{ label: 'Group Session', price: Math.round(coach.price_per_session * 0.4) }]
-          : []),
-      ];
-
+  const offerings = offeringLabels(coach.session_offerings);
   const displayRating = avgRating ?? coach.rating;
   const displayReviewCount = reviews.length > 0 ? reviews.length : (coach.reviews ?? 0);
 
@@ -217,27 +219,30 @@ export default function CoachProfilePage() {
       coach={coach}
       isFavorite={isFavorite}
       toggleFavorite={toggleFavorite}
-      availability={availability}
       reviews={reviews}
       avgRating={avgRating}
       displayRating={displayRating}
       displayReviewCount={displayReviewCount}
-      sessionTypes={sessionTypes}
+      offerings={offerings}
       mapsUrl={mapsUrl}
       user={user}
       navigate={navigate}
+      connectionAccepted={connectionAccepted}
     />
   );
 }
 
-function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, reviews, avgRating, displayRating, displayReviewCount, sessionTypes, mapsUrl, user, navigate }: any) {
+function CoachProfileInner({ coach, isFavorite, toggleFavorite, reviews, avgRating, displayRating, displayReviewCount, offerings, mapsUrl, user, navigate, connectionAccepted }: any) {
   const prefersReduced = useReducedMotion();
   const heroRef = useRef<HTMLElement>(null);
+  const [showConnect, setShowConnect] = useState(false);
 
   const sectionVariants = {
     hidden: { opacity: 0, y: prefersReduced ? 0 : 24 },
     visible: { opacity: 1, y: 0, transition: { ...SPRING } },
   };
+
+  const canMessage = user && connectionAccepted && coach.user_id && coach.user_id.length > 5;
 
   const messageCoach = async () => {
     if (!user || !coach) return;
@@ -307,16 +312,12 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
                     <Star size={13} fill="var(--c-reschedule)" style={{ color: 'var(--c-reschedule)' }} />
                     <span className="text-xs" style={{ color: 'var(--ink)' }}>{displayRating} ({displayReviewCount} reviews)</span>
                   </div>
-                  {coach.instant_book && (
-                    <span className="flex items-center gap-1 px-3 py-1 rounded-full text-xs" style={{ background: 'var(--black)', color: 'var(--paper)' }}>
-                      <Zap size={12} /> Instant book
-                    </span>
-                  )}
                 </div>
 
                 <div className="flex items-center justify-center md:justify-start gap-4 mb-3">
                   <h1 className="display-lg" aria-label={coach.name}>{coach.name}</h1>
-                  <button onClick={toggleFavorite}
+                  <motion.button onClick={toggleFavorite}
+                    whileTap={{ scale: 0.9 }}
                     className="p-3 rounded-full transition-colors shrink-0"
                     aria-label="Toggle favorite"
                     style={{
@@ -324,8 +325,12 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
                       border: `1px solid ${isFavorite ? 'rgba(188,90,72,0.3)' : 'var(--line-strong)'}`,
                       color: isFavorite ? 'var(--c-declined)' : 'var(--ink-soft)',
                     }}>
-                    <Heart size={20} fill={isFavorite ? 'currentColor' : 'none'} />
-                  </button>
+                    <motion.span className="inline-flex"
+                      animate={prefersReduced ? {} : { scale: isFavorite ? [1, 1.35, 1] : 1 }}
+                      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}>
+                      <Heart size={20} fill={isFavorite ? 'currentColor' : 'none'} />
+                    </motion.span>
+                  </motion.button>
                 </div>
 
                 <p className="text-lg mb-7" style={{ color: 'var(--ink-soft)' }}>
@@ -334,7 +339,7 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
 
                 <div className="flex flex-wrap justify-center md:justify-start gap-x-6 gap-y-3">
                   <span className="text-sm" style={{ color: 'var(--ink-soft)' }}>
-                    <span className="font-display text-xl" style={{ color: 'var(--ink)' }}>$<AnimatedCounter to={coach.price_per_session} /></span> / session
+                    <span className="font-display text-xl" style={{ color: 'var(--ink)' }}>Starting at $<AnimatedCounter to={coach.price_per_session} /></span> / session
                   </span>
                   {coach.years_experience > 0 && (
                     <span className="text-sm" style={{ color: 'var(--ink-soft)' }}>
@@ -365,8 +370,8 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...SPRING, delay: 0.16 }}
               >
-                <Link to={`/book/${coach.id}`} className="btn-primary px-10 py-4 text-center justify-center"><Calendar size={17} /> Book a session</Link>
-                {user && coach.user_id && coach.user_id.length > 5 && (
+                <button onClick={() => setShowConnect(true)} className="btn-primary px-10 py-4 text-center justify-center"><Link2 size={17} /> Connect</button>
+                {canMessage && (
                   <button onClick={messageCoach} className="btn-secondary px-10 py-3 flex items-center justify-center gap-2">
                     <MessageSquare size={16} /> Message coach
                   </button>
@@ -532,23 +537,24 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
                 </motion.section>
               )}
 
+              {/* What the coach offers (informational) */}
               <motion.section
                 variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }}
                 style={{ borderTop: '1px solid var(--line)', paddingTop: '3.5rem' }}
               >
-                <h2 className="display-md mb-6">Session types</h2>
-                <div className="flex flex-wrap gap-4">
-                  {sessionTypes.map((type: { label: string; price?: number }) => (
-                    <div key={type.label} className="cg-card p-6 flex-1 min-w-[260px] max-w-[400px]">
-                      <h4 className="font-display text-2xl mb-1" style={{ color: 'var(--ink)' }}>{type.label}</h4>
-                      {type.price != null && type.price > 0 ? (
-                        <p className="text-sm" style={{ color: 'var(--ink-soft)' }}>${type.price} / session</p>
-                      ) : (
-                        <p className="text-sm" style={{ color: 'var(--ink-soft)' }}>Intensive focused training designed for maximum growth.</p>
-                      )}
-                    </div>
+                <h2 className="display-md mb-6">What {coach.name} offers</h2>
+                <div className="flex flex-wrap gap-3 mb-5">
+                  {offerings.map((label: string) => (
+                    <span key={label} className="px-4 py-2 rounded-full text-sm"
+                      style={{ background: 'var(--card-cream)', border: '1px solid var(--line-strong)', color: 'var(--ink)' }}>
+                      {label} sessions
+                    </span>
                   ))}
                 </div>
+                <p className="text-sm" style={{ color: 'var(--ink-soft)' }}>
+                  Starting at <span className="font-display text-lg" style={{ color: 'var(--ink)' }}>${coach.price_per_session}</span> / session.
+                  Pricing and scheduling are arranged directly with the coach after you connect.
+                </p>
               </motion.section>
 
               {/* Reviews */}
@@ -571,8 +577,8 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
                   <div className="p-12 rounded-3xl text-center" style={{ border: '1px dashed var(--line-strong)', background: 'var(--card-cream)' }}>
                     <Star size={30} className="mx-auto mb-4" style={{ color: 'var(--ink-faint)' }} />
                     <p className="font-display text-2xl mb-2" style={{ color: 'var(--ink)' }}>No reviews yet</p>
-                    <p className="text-sm mb-6" style={{ color: 'var(--ink-soft)' }}>Be the first to book a session and leave a review.</p>
-                    <Link to={`/book/${coach.id}`} className="btn-primary py-2 px-6 text-sm">Book a session</Link>
+                    <p className="text-sm mb-6" style={{ color: 'var(--ink-soft)' }}>Connect with {coach.name} and start training to leave the first review.</p>
+                    <button onClick={() => setShowConnect(true)} className="btn-primary py-2 px-6 text-sm"><Link2 size={15} /> Connect</button>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -600,8 +606,14 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
                           </div>
                           <div className="flex gap-0.5">
                             {[1,2,3,4,5].map(star => (
-                              <Star key={star} size={14} fill={star <= review.rating ? 'var(--c-reschedule)' : 'transparent'}
-                                style={{ color: star <= review.rating ? 'var(--c-reschedule)' : 'var(--line-strong)' }} />
+                              <motion.span key={star} className="inline-flex"
+                                initial={prefersReduced ? {} : { scale: 0, opacity: 0 }}
+                                whileInView={{ scale: 1, opacity: 1 }}
+                                viewport={{ once: true }}
+                                transition={prefersReduced ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 16, delay: star * 0.06 }}>
+                                <Star size={14} fill={star <= review.rating ? 'var(--c-reschedule)' : 'transparent'}
+                                  style={{ color: star <= review.rating ? 'var(--c-reschedule)' : 'var(--line-strong)' }} />
+                              </motion.span>
                             ))}
                           </div>
                         </div>
@@ -613,7 +625,7 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
               </motion.section>
             </div>
 
-            {/* Right — Booking Sidebar */}
+            {/* Right — Connect Sidebar */}
             <div className="space-y-6">
               <motion.div
                 className="sticky top-28"
@@ -622,71 +634,45 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
                 transition={{ ...SPRING, delay: 0.2 }}
               >
                 <div className="cg-card p-7">
-                  <h3 className="font-display text-2xl mb-6 flex items-center gap-2" style={{ color: 'var(--ink)' }}>
-                    <Calendar size={20} style={{ color: 'var(--ink-soft)' }} /> Book a session
+                  <h3 className="font-display text-2xl mb-2 flex items-center gap-2" style={{ color: 'var(--ink)' }}>
+                    <Link2 size={20} style={{ color: 'var(--ink-soft)' }} /> Connect with {coach.name}
                   </h3>
+                  <p className="text-sm mb-6" style={{ color: 'var(--ink-soft)' }}>
+                    Share your contact info and {coach.name} will reach out directly to plan your training.
+                  </p>
 
-                  {Object.keys(availability).length > 0 ? (
-                    <div className="space-y-1 mb-6">
-                      {Object.entries(availability)
-                        .filter(([_, slots]) => (slots as string[]).length > 0)
-                        .slice(0, 5)
-                        .map(([day, slots]) => (
-                          <div key={day} className="flex justify-between items-center py-2" style={{ borderBottom: '1px solid var(--line)' }}>
-                            <span className="text-sm" style={{ color: 'var(--ink)' }}>{day}</span>
-                            <span className="text-xs" style={{ color: 'var(--ink-faint)' }}>{(slots as string[]).length} slot{(slots as string[]).length !== 1 ? 's' : ''}</span>
-                          </div>
-                        ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm mb-6" style={{ color: 'var(--ink-soft)' }}>Contact coach for availability.</p>
-                  )}
+                  <div className="flex items-baseline gap-2 mb-5">
+                    <span className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--ink-faint)' }}>Starting at</span>
+                    <span className="font-display text-3xl" style={{ color: 'var(--ink)' }}>${coach.price_per_session}</span>
+                    <span className="text-xs" style={{ color: 'var(--ink-faint)' }}>/ session</span>
+                  </div>
 
-                  {coach.location_modes && (
-                    <div className="flex flex-wrap gap-1.5 mb-5">
-                      {enabledLocationModes(coach.location_modes).map((m) => (
-                        <span key={m} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: 'var(--paper-warm)', color: 'var(--ink-soft)', border: '1px solid var(--line)' }}>
-                          {LOCATION_MODE_META[m].label}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-1.5 mb-5">
+                    {offerings.map((label: string) => (
+                      <span key={label} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: 'var(--paper-warm)', color: 'var(--ink-soft)', border: '1px solid var(--line)' }}>
+                        {label}
+                      </span>
+                    ))}
+                    {coach.location_modes && enabledLocationModes(coach.location_modes).map((m) => (
+                      <span key={m} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: 'var(--paper-warm)', color: 'var(--ink-soft)', border: '1px solid var(--line)' }}>
+                        {LOCATION_MODE_META[m].label}
+                      </span>
+                    ))}
+                  </div>
 
                   <button
-                    onClick={() => window.location.href = `/book/${coach.id}`}
+                    onClick={() => setShowConnect(true)}
                     className="btn-primary w-full justify-center mb-3 py-4 text-base"
                   >
-                    {coach.instant_book ? 'Book instantly' : 'Book now'} — ${coach.price_per_session}
+                    <Link2 size={17} /> Connect
                   </button>
-                  {user && (
+                  {canMessage && (
                     <button onClick={messageCoach} className="btn-secondary w-full flex items-center justify-center gap-2 mb-4">
                       <MessageSquare size={16} /> Message coach
                     </button>
                   )}
-                  {coach.packages && coach.packages.length > 0 && (
-                    <div className="mb-4 space-y-2">
-                      {coach.packages.map((pkg: any, i: number) => (
-                        <Link key={i} to={`/book/${coach.id}?pkg=${pkg.sessions}`}
-                          className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm transition-colors hover:bg-[rgba(27,24,19,0.04)]"
-                          style={{ background: 'var(--paper-warm)', border: '1px solid var(--line)', color: 'var(--ink)' }}>
-                          <span>{pkg.label}</span>
-                          <span className="font-display text-lg">${Math.round(coach.price_per_session * pkg.sessions * (1 - pkg.discount_pct / 100))}</span>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                  {coach.venmo_handle && (
-                    <div className="flex items-center gap-2 justify-center mb-3">
-                      <div className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: 'var(--c-venmo)' }}>
-                        V
-                      </div>
-                      <p className="text-xs" style={{ color: 'var(--ink-soft)' }}>
-                        Pay via Venmo <span style={{ color: 'var(--ink)' }}>@{coach.venmo_handle}</span>
-                      </p>
-                    </div>
-                  )}
-                  <p className="text-[11px] text-center uppercase tracking-wider" style={{ color: 'var(--ink-faint)' }}>
-                    Payment due after coach confirms
+                  <p className="text-[11px] text-center" style={{ color: 'var(--ink-faint)' }}>
+                    Scheduling and payment happen directly with your coach.
                   </p>
                 </div>
               </motion.div>
@@ -695,7 +681,7 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
           </div>
         </div>
 
-        {/* Sticky mobile booking bar */}
+        {/* Sticky mobile connect bar */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-40"
           style={{ background: 'rgba(246,244,239,0.95)', borderTop: '1px solid var(--line)', backdropFilter: 'blur(10px)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
           <div className="flex items-center gap-3 px-4 py-3" style={{ paddingRight: 88 }}>
@@ -703,12 +689,21 @@ function CoachProfileInner({ coach, isFavorite, toggleFavorite, availability, re
               <p className="text-[11px] leading-none mb-1" style={{ color: 'var(--ink-faint)' }}>From</p>
               <p className="font-display text-xl leading-none" style={{ color: 'var(--ink)' }}>${coach.price_per_session}</p>
             </div>
-            <Link to={`/book/${coach.id}`} className="btn-primary flex-1 justify-center py-3">
-              {coach.instant_book ? 'Book instantly' : 'Book a session'}
-            </Link>
+            <button onClick={() => setShowConnect(true)} className="btn-primary flex-1 justify-center py-3">
+              <Link2 size={16} /> Connect
+            </button>
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showConnect && (
+          <ConnectModal
+            coach={{ id: coach.id, user_id: coach.user_id, name: coach.name }}
+            onClose={() => setShowConnect(false)}
+          />
+        )}
+      </AnimatePresence>
     </PageTransition>
   );
 }

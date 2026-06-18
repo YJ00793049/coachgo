@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, MapPin, ArrowRight } from 'lucide-react';
+import { Star, MapPin, Link2 } from 'lucide-react';
 import { CoachProfile } from '../types';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { SPRING, specialtyColor } from '../tokens';
+import { offeringLabels } from '../utils/offerings';
+import ConnectModal from './ConnectModal';
 
 interface CoachCardProps {
   coach: CoachProfile;
@@ -13,8 +16,11 @@ export default function CoachCard({ coach }: CoachCardProps) {
   const navigate = useNavigate();
   const prefersReduced = useReducedMotion();
   const accent = specialtyColor[coach.specialty] || 'var(--sage)';
+  const [showConnect, setShowConnect] = useState(false);
+  const offerings = offeringLabels(coach.session_offerings);
 
   return (
+    <>
     <motion.div
       className="cg-card group cursor-pointer overflow-hidden flex flex-col h-full"
       whileHover={prefersReduced ? {} : { y: -6 }}
@@ -58,10 +64,17 @@ export default function CoachCard({ coach }: CoachCardProps) {
         </div>
 
         {/* Rating */}
-        <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded-full" style={{ background: 'rgba(251,250,246,0.92)' }}>
+        <div className="absolute top-3 right-3 z-[1] flex items-center gap-1 px-2 py-1 rounded-full" style={{ background: 'rgba(251,250,246,0.92)' }}>
           <Star size={11} fill="var(--c-reschedule)" style={{ color: 'var(--c-reschedule)' }} />
           <span className="text-xs font-medium" style={{ color: 'var(--ink)' }}>{coach.rating.toFixed(1)}</span>
         </div>
+
+        {/* Warm gradient overlay — fades in on hover */}
+        <div
+          aria-hidden
+          className="absolute inset-x-0 bottom-0 h-2/3 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+          style={{ background: 'linear-gradient(to top, rgba(27,24,19,0.42), rgba(27,24,19,0) 75%)' }}
+        />
       </div>
 
       {/* Content */}
@@ -74,28 +87,52 @@ export default function CoachCard({ coach }: CoachCardProps) {
           </div>
         )}
         <p
-          className="text-sm leading-relaxed mb-5 whitespace-pre-line flex-1"
+          className="text-sm leading-relaxed mb-4 whitespace-pre-line flex-1"
           style={{ color: 'var(--ink-soft)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
         >
           {coach.bio}
         </p>
+
+        {/* Session offerings (informational) */}
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {offerings.map(label => (
+            <span key={label} className="text-[11px] px-2.5 py-1 rounded-full"
+              style={{ background: 'var(--paper-warm)', color: 'var(--ink-soft)', border: '1px solid var(--line)' }}>
+              {label}
+            </span>
+          ))}
+        </div>
+
         <div className="flex items-center justify-between pt-4" style={{ borderTop: '1px solid var(--line)' }}>
           <div className="transition-transform duration-300 group-hover:-translate-y-0.5">
             <span className="text-[11px] uppercase tracking-wider block" style={{ color: 'var(--ink-faint)' }}>Starting at</span>
             <span className="font-display text-2xl" style={{ color: 'var(--ink)' }}>${coach.price_per_session}</span>
             <span className="text-xs ml-1" style={{ color: 'var(--ink-faint)' }}>/ session</span>
           </div>
-          <span
-            className="rotating-border flex items-center justify-center text-sm px-3.5 py-2 rounded-full"
-            style={{ position: 'relative', overflow: 'hidden', background: 'var(--black)', color: 'var(--paper)' }}
+          <motion.button
+            onClick={(e) => { e.stopPropagation(); setShowConnect(true); }}
+            whileHover={prefersReduced ? {} : { y: -2, scale: 1.04 }}
+            whileTap={{ scale: 0.95 }}
+            transition={SPRING}
+            className="flex items-center justify-center gap-1.5 text-sm px-4 py-2 rounded-full"
+            style={{ background: 'var(--black)', color: 'var(--paper)' }}
+            aria-label={`Connect with ${coach.name}`}
           >
-            <span className="relative z-[1] inline-flex items-center gap-1.5">
-              View profile
-              <ArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-0.5" />
-            </span>
-          </span>
+            <Link2 size={13} />
+            Connect
+          </motion.button>
         </div>
       </div>
     </motion.div>
+
+    <AnimatePresence>
+      {showConnect && (
+        <ConnectModal
+          coach={{ id: coach.id, user_id: coach.user_id, name: coach.name }}
+          onClose={() => setShowConnect(false)}
+        />
+      )}
+    </AnimatePresence>
+    </>
   );
 }

@@ -60,10 +60,10 @@ export default function TermsPage() {
               3. Coach and Player Responsibilities
             </h2>
             <div className="space-y-4 leading-relaxed" style={bodyStyle}>
-              <p><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Players:</strong> You agree to arrive on time for sessions, provide accurate information about your skill level, and follow the coach's instructions during the session.</p>
+              <p><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Players:</strong> You agree to provide accurate information about yourself, share contact details responsibly when connecting, and communicate respectfully with coaches.</p>
               <p><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Coaches:</strong> You agree to provide professional instruction, maintain a safe environment, and accurately represent your qualifications and experience.</p>
               <p>
-                CoachGo is a marketplace that facilitates connections between players and coaches. We do not employ the coaches and are not responsible for their individual conduct or the quality of instruction provided.
+                CoachGo is a discovery and connection platform between players and coaches. We do not employ the coaches and are not responsible for their individual conduct or the quality of instruction provided.
               </p>
             </div>
           </section>
@@ -71,14 +71,14 @@ export default function TermsPage() {
           <section>
             <h2 className="text-2xl font-bold mb-6 flex items-center gap-3" style={sectionHeadingStyle}>
               <CreditCard size={24} style={iconStyle} />
-              4. Payments and Refunds
+              4. Scheduling and Payments
             </h2>
             <div className="space-y-4 leading-relaxed" style={bodyStyle}>
               <p>
-                Payments are made directly from players to coaches via Venmo after a session is confirmed. By booking a session, you agree to send the listed payment to the coach promptly once your booking is accepted.
+                CoachGo does not process payments or schedule sessions. Once a player connects with a coach, all scheduling, pricing, and payment are arranged directly between the player and the coach.
               </p>
               <p>
-                Refunds are generally not provided for completed sessions. If you are dissatisfied with a session, please contact our support team within 48 hours to discuss your concerns.
+                Any agreements about pricing, refunds, or cancellations are between the player and the coach. If you have a concern about a coach, please contact our support team and we'll do our best to help.
               </p>
             </div>
           </section>
@@ -86,14 +86,14 @@ export default function TermsPage() {
           <section>
             <h2 className="text-2xl font-bold mb-6 flex items-center gap-3" style={sectionHeadingStyle}>
               <AlertTriangle size={24} style={iconStyle} />
-              5. Cancellation Policy
+              5. Connections and Conduct
             </h2>
             <div className="space-y-4 leading-relaxed" style={bodyStyle}>
               <p>
-                Sessions can be rescheduled or cancelled up to 24 hours before the scheduled start time for a full refund.
+                When you send a connection request, you choose what contact information to share with a coach. The coach may use it to reach out to you about training.
               </p>
               <p>
-                Cancellations made within 24 hours of the session start time may be subject to a cancellation fee of up to 50% of the session price, at the discretion of the coach and CoachGo.
+                Misuse of contact information, spam, or harassment is prohibited and may result in removal from the platform.
               </p>
             </div>
           </section>

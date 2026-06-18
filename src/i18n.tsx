@@ -25,14 +25,14 @@ const en: Dict = {
   'nav.profile': 'Profile',
   'hero.title1': 'Find the coach',
   'hero.title2': 'who gets your game',
-  'hero.sub': 'Book sessions with elite, vetted specialists in hitting, pitching, fielding, and strength — for exactly the part of your game you want to master.',
-  'hero.browse': 'Browse coaches',
+  'hero.sub': 'Discover elite, vetted specialists in hitting, pitching, fielding, and strength — connect with the right one and they reach out directly to plan your training.',
+  'hero.browse': 'Discover coaches',
   'hero.join': 'Join as a coach',
   'hero.affiliated': 'Coaches affiliated with',
   'footer.platform': 'Platform',
   'footer.specialties': 'Specialties',
   'footer.support': 'Support',
-  'footer.blurb': "San Diego's marketplace for specialized baseball instruction — hitting, pitching, fielding, and strength, with vetted coaches.",
+  'footer.blurb': 'Your personal LinkedIn for baseball coaching — discover vetted San Diego specialists in hitting, pitching, fielding, and strength, then connect directly.',
 };
 
 const ko: Dict = {
@@ -46,14 +46,14 @@ const ko: Dict = {
   'nav.profile': '프로필',
   'hero.title1': '내 야구를 이해하는',
   'hero.title2': '코치를 찾으세요',
-  'hero.sub': '타격, 투구, 수비, 체력 분야의 검증된 전문 코치와 세션을 예약하고 원하는 부분을 정확히 보완하세요.',
+  'hero.sub': '타격, 투구, 수비, 체력 분야의 검증된 전문 코치를 찾아 연결하면, 코치가 직접 연락해 훈련 계획을 함께 세웁니다.',
   'hero.browse': '코치 둘러보기',
   'hero.join': '코치로 참여하기',
   'hero.affiliated': '코치 소속 구단·학교',
   'footer.platform': '플랫폼',
   'footer.specialties': '전문 분야',
   'footer.support': '고객 지원',
-  'footer.blurb': '샌디에이고의 전문 야구 지도 마켓플레이스 — 검증된 코치와 함께 타격, 투구, 수비, 체력을 배우세요.',
+  'footer.blurb': '야구 코칭을 위한 나만의 링크드인 — 검증된 샌디에이고 전문 코치를 찾아 바로 연결하세요.',
 };
 
 const es: Dict = {
@@ -67,14 +67,14 @@ const es: Dict = {
   'nav.profile': 'Perfil',
   'hero.title1': 'Encuentra al entrenador',
   'hero.title2': 'que entiende tu juego',
-  'hero.sub': 'Reserva sesiones con especialistas de élite y verificados en bateo, pitcheo, defensa y fuerza — para justo la parte de tu juego que quieres dominar.',
-  'hero.browse': 'Ver entrenadores',
+  'hero.sub': 'Descubre especialistas de élite y verificados en bateo, pitcheo, defensa y fuerza — conecta con el indicado y te contactará directamente para planear tu entrenamiento.',
+  'hero.browse': 'Descubrir entrenadores',
   'hero.join': 'Únete como entrenador',
   'hero.affiliated': 'Entrenadores afiliados con',
   'footer.platform': 'Plataforma',
   'footer.specialties': 'Especialidades',
   'footer.support': 'Soporte',
-  'footer.blurb': 'El marketplace de San Diego para instrucción de béisbol especializada — bateo, pitcheo, defensa y fuerza, con entrenadores verificados.',
+  'footer.blurb': 'Tu LinkedIn personal para el coaching de béisbol — descubre especialistas verificados de San Diego y conecta directamente.',
 };
 
 const DICT: Record<Lang, Dict> = { en, ko, es };

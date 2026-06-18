@@ -111,9 +111,9 @@ export default function Footer() {
 
         {/* Understated legal paragraph */}
         <p className="mt-16 text-xs leading-relaxed max-w-3xl" style={{ color: 'var(--ink-faint)' }}>
-          CoachGo connects players with independent baseball instructors. CoachGo does not employ coaches and does not
-          process payments — sessions are paid directly to coaches via Venmo after a coach confirms a booking. Coach
-          credentials and statements are self-reported.
+          CoachGo helps players discover and connect with independent baseball instructors. CoachGo does not employ
+          coaches and does not handle scheduling or payments — those are arranged directly between players and coaches.
+          Coach credentials and statements are self-reported.
         </p>
 
         {/* Bottom bar */}

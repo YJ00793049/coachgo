@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion, useMotionValue, useSpring } from 'framer-motion';
-import { CheckCircle2, ChevronRight, Loader2, Target, DollarSign, MapPin, User, Zap, CreditCard, Plus, X, Camera, Video, Upload } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Loader2, Target, DollarSign, MapPin, User, Zap, Plus, X, Camera, Video, Upload } from 'lucide-react';
 import { auth, db, storage } from '../firebase';
 import { doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import PageTransition from '../components/PageTransition';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
-import { getBrowserTimezone } from '../utils/scheduling';
+import { ALL_OFFERINGS, OFFERING_LABEL } from '../utils/offerings';
+import type { SessionOffering } from '../types';
 import { SPRING, SPRING_BOUNCY } from '../tokens';
 
 // Step transition variants — 3D flip
@@ -158,8 +159,8 @@ export default function CoachOnboardingPage() {
     secondarySpecialty: '',
     bio: '',
     yearsExperience: '',
-    sessionTypes: [{ label: '1-on-1 Private', price: '' }] as { label: string; price: string }[],
-    venmoHandle: '',
+    offerings: ['1-on-1'] as SessionOffering[],
+    startingPrice: '',
     city: '',
     state: '',
     streetAddress: '',
@@ -187,6 +188,15 @@ export default function CoachOnboardingPage() {
   const totalSteps = 5;
   const nextStep = () => setStep(s => Math.min(s + 1, totalSteps));
   const prevStep = () => setStep(s => Math.max(s - 1, 1));
+
+  const toggleOffering = (o: SessionOffering) => {
+    setProfile(p => ({
+      ...p,
+      offerings: p.offerings.includes(o)
+        ? (p.offerings.length > 1 ? p.offerings.filter(x => x !== o) : p.offerings)
+        : [...p.offerings, o],
+    }));
+  };
 
   const toggleSkill = (skill: string) => {
     setProfile(p => ({
@@ -256,7 +266,6 @@ export default function CoachOnboardingPage() {
     setIsSubmitting(true);
     try {
       const uid = auth.currentUser.uid;
-      const prices = profile.sessionTypes.map(s => Number(s.price)).filter(p => p > 0);
 
       // merge:true preserves rating/reviews if coach re-runs onboarding
       await setDoc(doc(db, 'coach_profiles', uid), {
@@ -266,9 +275,8 @@ export default function CoachOnboardingPage() {
         secondary_specialty: profile.secondarySpecialty || null,
         bio: profile.bio,
         years_experience: Number(profile.yearsExperience),
-        session_types_with_price: profile.sessionTypes.map(s => ({ label: s.label.trim(), price: Number(s.price) })),
-        price_per_session: prices.length > 0 ? Math.min(...prices) : 0,
-        venmo_handle: profile.venmoHandle.replace('@', '').trim(),
+        session_offerings: profile.offerings,
+        price_per_session: Number(profile.startingPrice) || 0,
         video_url: videoUploadedUrl,
         city: profile.city,
         state: profile.state,
@@ -276,13 +284,9 @@ export default function CoachOnboardingPage() {
         skills: profile.skills,
         certifications: profile.certifications,
         affiliations: profile.affiliations,
-        availability: {},
         is_active: true,
         photo_url: photoUploadedUrl || null,
-        instant_book: false,
         location_modes: { facility: true, travel: false, virtual: false },
-        buffer_minutes: 0,
-        timezone: getBrowserTimezone(),
         updated_at: serverTimestamp(),
       }, { merge: true });
 
@@ -855,69 +859,49 @@ export default function CoachOnboardingPage() {
                       <DollarSign size={20} />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-ink">Pricing & Experience</h2>
-                      <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>Set your rate and experience level.</p>
+                      <h2 className="text-xl font-bold text-ink">What you offer</h2>
+                      <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>Players reach out directly to plan training.</p>
                     </div>
                   </div>
 
-                  {/* Session Types & Pricing */}
+                  {/* What you offer — multi-select */}
                   <div className="mb-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <label className="text-xs font-bold uppercase tracking-widest" style={{ color: 'rgba(27,24,19,0.4)' }}>
-                        Session Types &amp; Pricing
-                      </label>
-                      <span className="text-[10px]" style={{ color: 'rgba(27,24,19,0.25)' }}>Add all types you offer</span>
+                    <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(27,24,19,0.4)' }}>
+                      What do you offer?
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {ALL_OFFERINGS.map(o => {
+                        const selected = profile.offerings.includes(o);
+                        return (
+                          <button key={o} type="button" onClick={() => toggleOffering(o)}
+                            className="flex items-center justify-center gap-2 py-5 rounded-2xl text-sm font-bold transition-all"
+                            style={{
+                              background: selected ? 'rgba(27,24,19,0.15)' : 'rgba(27,24,19,0.04)',
+                              border: `2px solid ${selected ? '#1B1813' : 'rgba(27,24,19,0.08)'}`,
+                              color: selected ? '#1B1813' : 'rgba(27,24,19,0.5)',
+                            }}>
+                            {selected && <CheckCircle2 size={15} />}
+                            {OFFERING_LABEL[o]} sessions
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className="space-y-3 mb-3">
-                      {profile.sessionTypes.map((st, idx) => (
-                        <div key={idx} className="flex gap-3 items-center">
-                          <input
-                            type="text"
-                            placeholder={idx === 0 ? '1-on-1 Private' : 'e.g. Group Session'}
-                            value={st.label}
-                            onChange={e => setProfile(p => {
-                              const updated = [...p.sessionTypes];
-                              updated[idx] = { ...updated[idx], label: e.target.value };
-                              return { ...p, sessionTypes: updated };
-                            })}
-                            className="flex-1 rounded-xl p-4 text-sm text-ink focus:outline-none"
-                            style={{ background: 'rgba(27,24,19,0.05)', border: '1px solid rgba(27,24,19,0.08)' }}
-                          />
-                          <div className="flex items-center rounded-xl overflow-hidden shrink-0"
-                            style={{ background: 'rgba(27,24,19,0.05)', border: '1px solid rgba(27,24,19,0.08)' }}>
-                            <span className="pl-3 text-sm font-bold" style={{ color: 'rgba(27,24,19,0.35)' }}>$</span>
-                            <input
-                              type="number"
-                              placeholder="100"
-                              value={st.price}
-                              onChange={e => setProfile(p => {
-                                const updated = [...p.sessionTypes];
-                                updated[idx] = { ...updated[idx], price: e.target.value };
-                                return { ...p, sessionTypes: updated };
-                              })}
-                              className="w-24 bg-transparent py-4 pr-3 pl-1 text-sm text-ink focus:outline-none"
-                              style={{ colorScheme: 'light' }}
-                            />
-                          </div>
-                          {profile.sessionTypes.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => setProfile(p => ({ ...p, sessionTypes: p.sessionTypes.filter((_, i) => i !== idx) }))}
-                              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all hover:bg-[rgba(188,90,72,0.1)]"
-                              style={{ color: 'rgba(188,90,72,0.6)', border: '1px solid rgba(188,90,72,0.15)' }}>
-                              <X size={16} />
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                    <p className="text-[10px] mt-2" style={{ color: 'rgba(27,24,19,0.25)' }}>Select one or both.</p>
+                  </div>
+
+                  {/* Starting price — informational */}
+                  <div className="mb-6">
+                    <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(27,24,19,0.4)' }}>
+                      Starting price
+                    </label>
+                    <p className="text-[10px] mb-2" style={{ color: 'rgba(27,24,19,0.25)' }}>Shown as “Starting at $X / session”. Final pricing is arranged with each player.</p>
+                    <div className="flex items-center rounded-xl overflow-hidden" style={{ background: 'rgba(27,24,19,0.05)', border: '1px solid rgba(27,24,19,0.08)' }}>
+                      <span className="pl-4 text-sm font-bold" style={{ color: 'rgba(27,24,19,0.35)' }}>$</span>
+                      <input type="number" placeholder="100" value={profile.startingPrice}
+                        onChange={e => setProfile(p => ({ ...p, startingPrice: e.target.value }))}
+                        className="flex-1 bg-transparent py-4 pr-4 pl-1 text-sm text-ink focus:outline-none" style={{ colorScheme: 'light' }} />
+                      <span className="pr-4 text-sm" style={{ color: 'rgba(27,24,19,0.3)' }}>/ session</span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setProfile(p => ({ ...p, sessionTypes: [...p.sessionTypes, { label: '', price: '' }] }))}
-                      className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest px-4 py-2.5 rounded-xl transition-all hover:bg-[rgba(27,24,19,0.05)]"
-                      style={{ color: '#1B1813', border: '1px solid rgba(27,24,19,0.2)' }}>
-                      <Plus size={14} /> Add Session Type
-                    </button>
                   </div>
 
                   {/* Years of Experience */}
@@ -930,35 +914,13 @@ export default function CoachOnboardingPage() {
                       style={{ background: 'rgba(27,24,19,0.05)', border: '1px solid rgba(27,24,19,0.08)', colorScheme: 'light' }} />
                   </div>
 
-                  {/* Venmo Handle — REQUIRED */}
-                  <div className="mb-8">
-                    <div className="flex items-center gap-2 mb-1">
-                      <label className="text-xs font-bold uppercase tracking-widest" style={{ color: 'rgba(27,24,19,0.4)' }}>
-                        Venmo Handle <span style={{ color: '#BC5A48' }}>*</span>
-                      </label>
-                      <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: 'rgba(188,90,72,0.1)', color: '#BC5A48', border: '1px solid rgba(188,90,72,0.2)' }}>Required</span>
-                    </div>
-                    <p className="text-[10px] mb-3" style={{ color: 'rgba(27,24,19,0.25)' }}>Players will pay you through Venmo after confirmation.</p>
-                    <div className="flex items-center gap-3 rounded-xl overflow-hidden"
-                      style={{ background: 'rgba(27,24,19,0.05)', border: `1px solid ${!profile.venmoHandle.trim() ? 'rgba(188,90,72,0.25)' : 'rgba(27,24,19,0.08)'}` }}>
-                      <span className="pl-4 font-bold text-sm shrink-0" style={{ color: 'rgba(27,24,19,0.35)' }}>@</span>
-                      <input
-                        type="text"
-                        value={profile.venmoHandle}
-                        onChange={e => setProfile(p => ({ ...p, venmoHandle: e.target.value.replace('@', '').replace(/\s/g, '') }))}
-                        placeholder="your-venmo-username"
-                        className="flex-1 bg-transparent py-4 pr-4 text-sm text-ink focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
                   <div className="flex justify-between">
                     <button onClick={prevStep} className="text-sm font-bold" style={{ color: 'rgba(27,24,19,0.4)' }}>Back</button>
                     <button onClick={nextStep}
                       disabled={
-                        profile.sessionTypes.some(s => !s.label.trim() || !s.price) ||
-                        !profile.yearsExperience ||
-                        !profile.venmoHandle.trim()
+                        profile.offerings.length === 0 ||
+                        !profile.startingPrice ||
+                        !profile.yearsExperience
                       }
                       className="btn-primary py-3 px-8 flex items-center gap-2 disabled:opacity-50">
                       Continue <ChevronRight size={16} />
@@ -1016,10 +978,10 @@ export default function CoachOnboardingPage() {
                       {[
                         { label: 'Specialty', value: profile.specialty + (profile.secondarySpecialty ? ` + ${profile.secondarySpecialty}` : '') },
                         { label: 'Skills', value: profile.skills.length > 0 ? profile.skills.join(', ') : 'None selected' },
-                        { label: 'Sessions', value: profile.sessionTypes.map(s => `${s.label} ($${s.price})`).join(', ') || 'Not set' },
+                        { label: 'Offers', value: profile.offerings.map(o => OFFERING_LABEL[o]).join(', ') || 'Not set' },
+                        { label: 'Starting price', value: profile.startingPrice ? `$${profile.startingPrice} / session` : 'Not set' },
                         { label: 'Experience', value: `${profile.yearsExperience} years` },
                         { label: 'Location', value: profile.city && profile.state ? `${profile.city}, ${profile.state}` : 'Not set' },
-                        ...(profile.venmoHandle ? [{ label: 'Venmo', value: `@${profile.venmoHandle}` }] : []),
                       ].map(item => (
                         <div key={item.label} className="flex justify-between gap-4">
                           <span style={{ color: 'rgba(27,24,19,0.4)' }}>{item.label}</span>

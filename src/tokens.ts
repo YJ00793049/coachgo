@@ -28,7 +28,6 @@ export const colors = {
   pending:   '#7C95AD',
   completed: '#8A7BA8',
   reschedule:'#C79A57',
-  venmo:     '#008CFF', // Venmo brand — used only on Venmo CTA
 } as const;
 
 // Specialty accent mapping (soft)

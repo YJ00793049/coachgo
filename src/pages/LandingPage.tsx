@@ -3,7 +3,7 @@ import { motion, useReducedMotion, AnimatePresence, useMotionValue, useSpring, u
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight, ArrowUpRight, Plus, Star, Search, CalendarCheck,
-  PlayCircle, MessageCircle, Sparkles, ShieldCheck, Clock, Wallet,
+  PlayCircle, Check, X, ShieldCheck, Clock, Wallet,
 } from 'lucide-react';
 import CoachCard from '../components/CoachCard';
 import PageTransition from '../components/PageTransition';
@@ -66,7 +66,7 @@ const FEATURED_COACHES = [
     id: '1', user_id: 'u1', name: 'Shim Jeong-soo', specialty: 'hitting' as const,
     bio: "5x Korean Series Champion. 53 HR & 142 RBI in 2003. 3x KBO Golden Glove. 328 career home runs — 6th all-time in KBO.",
     price_per_session: 120, rating: 4.9, certifications: [], years_experience: 15,
-    session_types: [], availability: {}, is_active: true, avatar_url: '/shim_new.png',
+    is_active: true, avatar_url: '/shim_new.png',
     avatar_position: 'top', street_address: 'Spring Canyon Neighborhood Park', city: 'San Diego', state: 'CA', zip_code: '92131',
     affiliations: [{ name: 'KBO Hyundai Unicorns', logoUrl: '/unicorns.png' }],
   },
@@ -74,7 +74,7 @@ const FEATURED_COACHES = [
     id: '2', user_id: 'u2', name: 'Kris Benson', specialty: 'pitching' as const,
     bio: "#1 overall pick in the 1996 MLB Draft. Dick Howser Trophy winner. 1996 Olympics bronze medalist. 13 professional MLB seasons.",
     price_per_session: 150, rating: 5.0, certifications: [], years_experience: 12,
-    session_types: [], availability: {}, is_active: true, avatar_url: '/krisbenson.webp',
+    is_active: true, avatar_url: '/krisbenson.webp',
     avatar_position: 'top', street_address: '16601 Nighthawk Ln', city: 'San Diego', state: 'CA', zip_code: '92127',
     affiliations: [{ name: 'Pittsburgh Pirates', logoUrl: 'https://www.mlbstatic.com/team-logos/134.svg' }],
   },
@@ -82,7 +82,7 @@ const FEATURED_COACHES = [
     id: '9', user_id: 'u9', name: 'Robert Congalton', specialty: 'strength' as const,
     bio: "Co-owner of 1RM Performance. Former D1 Javelin Thrower. 445 lb bench, 545 lb deadlift. DNS-Integrated Coaching System.",
     price_per_session: 80, rating: 4.9, certifications: [], years_experience: 10,
-    session_types: [], availability: {}, is_active: true, avatar_url: '/bobbycongalton.jpg',
+    is_active: true, avatar_url: '/bobbycongalton.jpg',
     street_address: '4040 Sorrento Valley Blvd', city: 'San Diego', state: 'CA', zip_code: '92121',
     affiliations: [{ name: 'SDSU', logoUrl: '/sdsu.png' }],
   },
@@ -97,24 +97,24 @@ const DISCIPLINES = [
 
 const FAQS = [
   {
-    q: 'How do I book a session?',
-    a: 'Browse coaches, open a profile, pick a session type and an available time, then confirm. The whole flow takes about a minute.',
+    q: 'How does connecting work?',
+    a: 'Browse coaches, open a profile, and tap Connect. Share a phone number or email and the coach reaches out directly to talk through how they can help.',
   },
   {
-    q: 'How do payments work?',
-    a: 'CoachGo never processes payments. After a coach confirms your booking, you pay them directly through Venmo using a one-tap link — only once your session is confirmed.',
+    q: 'How do scheduling and payment work?',
+    a: 'Everything is arranged directly between you and your coach. CoachGo doesn’t handle booking or payments — once you connect, you sort out times and pricing together.',
   },
   {
-    q: 'Can I reschedule or cancel?',
-    a: 'Yes. From your dashboard you can request a reschedule on confirmed sessions or cancel pending ones. Coaches accept or decline reschedule requests, and you get email reminders 24 hours before each session.',
+    q: 'When can I message a coach in the app?',
+    a: 'In-app messaging opens once a coach accepts your connection request. Until then, they’ll reach out using the contact info you shared.',
   },
   {
-    q: 'Do coaches set their own prices?',
-    a: 'They do. Each coach defines their own session types and pricing, including 1-on-1 and group rates where offered.',
+    q: 'What do coaches offer?',
+    a: 'Each profile shows whether a coach does 1-on-1, group, or both, plus a starting price — so you know what to expect before you connect.',
   },
   {
     q: 'What if the coach isn’t the right fit?',
-    a: 'Not feeling the connection after your first session? We’ll personally match you with a different coach — no questions asked.',
+    a: 'No problem — you can connect with as many specialists as you like and find the one who fits your goals and schedule best.',
   },
 ];
 
@@ -227,30 +227,22 @@ function FeatureSection({
 }
 
 /* ─── Mock visuals for feature cards ────────────────────────────── */
-function BookingMock() {
+function ConnectMock() {
   return (
     <MeshCard className="p-6 md:p-8 aspect-[4/3] flex items-center justify-center">
       <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: 'rgba(251,250,246,0.92)', border: '1px solid var(--line)', boxShadow: '0 18px 50px rgba(27,24,19,0.10)' }}>
-        <div className="flex items-center gap-2 mb-4">
-          {['Session', 'Date', 'Details', 'Confirm'].map((s, i) => (
-            <div key={s} className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
-                style={{ background: i === 0 ? 'var(--black)' : 'transparent', color: i === 0 ? 'var(--paper)' : 'var(--ink-faint)', border: i === 0 ? 'none' : '1px solid var(--line-strong)' }}>
-                {i + 1}
-              </span>
-              {i < 3 && <span className="w-4 h-px" style={{ background: 'var(--line-strong)' }} />}
+        <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'var(--ink-faint)' }}>Connect with Kris Benson</p>
+        <p className="text-sm mb-4" style={{ color: 'var(--ink-soft)' }}>How should Kris reach you?</p>
+        <div className="space-y-2.5 mb-4">
+          {['Phone — (555) 123-4567', 'Email — you@email.com'].map((o) => (
+            <div key={o} className="flex items-center rounded-xl px-4 py-3 text-sm"
+              style={{ background: 'var(--paper-warm)', border: '1px solid var(--line)', color: 'var(--ink)' }}>
+              {o}
             </div>
           ))}
         </div>
-        <p className="text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--ink-faint)' }}>Choose a session</p>
-        <div className="space-y-2.5">
-          {[{ l: '1-on-1 Private', p: '$120' }, { l: 'Group Session', p: '$48' }].map((o, i) => (
-            <div key={o.l} className="flex items-center justify-between rounded-xl px-4 py-3"
-              style={{ background: i === 0 ? 'var(--paper-warm)' : 'transparent', border: `1px solid ${i === 0 ? 'var(--ink)' : 'var(--line)'}` }}>
-              <span className="text-sm" style={{ color: 'var(--ink)' }}>{o.l}</span>
-              <span className="font-display text-lg" style={{ color: 'var(--ink)' }}>{o.p}</span>
-            </div>
-          ))}
+        <div className="rounded-full px-4 py-3 text-center text-sm" style={{ background: 'var(--black)', color: 'var(--paper)' }}>
+          Send connection request
         </div>
       </div>
     </MeshCard>
@@ -287,7 +279,7 @@ function ReviewsMock() {
   return (
     <MeshCard className="p-6 md:p-8 aspect-[4/3] flex flex-col items-center justify-center gap-3">
       {[
-        { n: 'Jake R.', t: 'Booked a hitting coach and saw real exit-velo gains in two weeks.' },
+        { n: 'Jake R.', t: 'Connected with a hitting coach and saw real exit-velo gains in two weeks.' },
         { n: 'Mike D.', t: 'Found a pitching specialist who actually understands mechanics.' },
       ].map((r) => (
         <div key={r.n} className="w-full max-w-sm rounded-2xl p-4" style={{ background: 'rgba(251,250,246,0.94)', border: '1px solid var(--line)', boxShadow: '0 12px 36px rgba(27,24,19,0.08)' }}>
@@ -305,18 +297,27 @@ function ReviewsMock() {
 function MessagingMock() {
   return (
     <MeshCard className="p-6 md:p-8 aspect-[4/3] flex items-center justify-center">
-      <div className="w-full max-w-sm rounded-2xl p-5 space-y-3" style={{ background: 'rgba(251,250,246,0.95)', border: '1px solid var(--line)', boxShadow: '0 18px 50px rgba(27,24,19,0.10)' }}>
-        <div className="max-w-[78%] rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm" style={{ background: 'var(--paper-warm)', color: 'var(--ink)' }}>
-          Hi! Do you have openings this weekend?
-        </div>
-        <div className="max-w-[78%] ml-auto rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm" style={{ background: 'var(--black)', color: 'var(--paper)' }}>
-          Yes — Saturday 10am works. Want me to hold it?
-        </div>
-        <div className="flex items-center gap-2 pt-1">
-          <span className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'var(--paper-warm)', color: 'var(--ink-soft)' }}>
-            <Sparkles size={14} />
+      <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: 'rgba(251,250,246,0.95)', border: '1px solid var(--line)', boxShadow: '0 18px 50px rgba(27,24,19,0.10)' }}>
+        <p className="text-[11px] uppercase tracking-wider mb-4" style={{ color: 'var(--ink-faint)' }}>New connection request</p>
+        <div className="flex items-start gap-3 mb-3">
+          <span className="w-11 h-11 rounded-full flex items-center justify-center font-display text-lg shrink-0" style={{ background: 'var(--paper-warm)', color: 'var(--ink)' }}>
+            JM
           </span>
-          <span className="text-xs" style={{ color: 'var(--ink-faint)' }}>AI support, online 24/7</span>
+          <div className="min-w-0">
+            <p className="font-display text-lg leading-tight" style={{ color: 'var(--ink)' }}>Jordan Miller</p>
+            <p className="text-xs" style={{ color: 'var(--ink-faint)' }}>Shortstop · Developing</p>
+          </div>
+        </div>
+        <p className="text-sm italic mb-4 rounded-xl px-3 py-2.5" style={{ background: 'var(--paper-warm)', color: 'var(--ink-soft)' }}>
+          “Looking to improve my hitting mechanics before tryouts.”
+        </p>
+        <div className="flex gap-2">
+          <span className="flex-1 flex items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-sm" style={{ background: 'var(--black)', color: 'var(--paper)' }}>
+            <Check size={14} /> Accept
+          </span>
+          <span className="flex items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-sm" style={{ border: '1px solid var(--line-strong)', color: 'var(--ink-soft)' }}>
+            <X size={14} /> Ignore
+          </span>
         </div>
       </div>
     </MeshCard>
@@ -326,18 +327,30 @@ function MessagingMock() {
 /* ─── Headline line reveal (clip-mask rise) ─────────────────────── */
 function LineReveal({ lines, className = '' }: { lines: string[]; className?: string }) {
   const reduce = useReducedMotion();
+  let w = -1; // running word index so the stagger continues across lines
   return (
     <h1 className={className}>
-      {lines.map((ln, i) => (
-        <span key={i} className="block overflow-hidden" style={{ paddingBottom: '0.2em', marginBottom: '-0.14em' }}>
-          <motion.span
-            className="block"
-            initial={reduce ? { opacity: 0 } : { y: '120%' }}
-            animate={reduce ? { opacity: 1 } : { y: 0 }}
-            transition={{ duration: 0.85, delay: 0.12 + i * 0.12, ease: EASE_OUT }}
-          >
-            {ln}
-          </motion.span>
+      {lines.map((ln, li) => (
+        <span key={li} className="block">
+          {ln.split(' ').map((word, wi) => {
+            w += 1;
+            return (
+              <span
+                key={`${li}-${wi}`}
+                className="inline-block overflow-hidden align-top"
+                style={{ marginRight: '0.24em', paddingBottom: '0.14em', marginBottom: '-0.14em' }}
+              >
+                <motion.span
+                  className="inline-block"
+                  initial={reduce ? { opacity: 0 } : { y: '115%' }}
+                  animate={reduce ? { opacity: 1 } : { y: 0 }}
+                  transition={{ duration: 0.7, delay: 0.1 + w * 0.1, ease: EASE_OUT }}
+                >
+                  {word}
+                </motion.span>
+              </span>
+            );
+          })}
         </span>
       ))}
     </h1>
@@ -476,7 +489,7 @@ export default function LandingPage() {
               <Eyebrow>The platform</Eyebrow>
               <h2 className="display-lg mt-5 mb-5">See CoachGo in action</h2>
               <p className="text-lg leading-relaxed max-w-xl mx-auto mb-10" style={{ color: 'var(--ink-soft)' }}>
-                From browsing specialists to booking and training — a calm, focused way to get better at baseball.
+                From discovering specialists to connecting and training — a calm, focused way to get better at baseball.
               </p>
             </Reveal>
             <Reveal delay={0.1}>
@@ -504,21 +517,21 @@ export default function LandingPage() {
 
         {/* ── FEATURE SECTIONS ── */}
         <FeatureSection
-          eyebrow="Booking"
-          title={<>Book a session<br />in under a minute</>}
-          intro="Pick a coach, choose a slot, and confirm. No back-and-forth, no waitlists, no upfront commitment."
+          eyebrow="Connecting"
+          title={<>Connect in<br />under a minute</>}
+          intro="Find a specialist, tap Connect, and share how to reach you. The coach takes it from there — no back-and-forth, no upfront commitment."
           points={[
-            { title: 'Pick your session type', detail: 'Choose 1-on-1 or group sessions, plus multi-session packages where coaches offer them.' },
-            { title: 'Choose date & time', detail: 'See each coach’s real availability and grab the slot that fits your schedule.' },
-            { title: 'Confirm and you’re set', detail: 'The coach reviews and confirms — then you get reminders so you never miss a session.' },
+            { title: 'Tap Connect', detail: 'See what each coach offers — 1-on-1, group, or both — then send a request in one tap.' },
+            { title: 'Share your contact', detail: 'Add a phone number or email and an optional note about your goals.' },
+            { title: 'They reach out', detail: 'The coach contacts you directly to plan training, scheduling, and pricing.' },
           ]}
-          visual={<BookingMock />}
+          visual={<ConnectMock />}
         />
 
         <FeatureSection
           reverse
           eyebrow="Coaches"
-          title={<>Meet your coach<br />before you book</>}
+          title={<>Meet your coach<br />before you connect</>}
           intro="Every coach has an intro video, verified credentials, and real reviews — so you know exactly who you’re training with."
           points={[
             { title: 'Watch an intro video', detail: 'Hear directly from each coach about how they teach before you commit.' },
@@ -533,9 +546,9 @@ export default function LandingPage() {
           title={<>Train with<br />proven coaches</>}
           intro="Ratings and reviews come from completed sessions only — and every coach’s average updates the moment a new review lands."
           points={[
-            { title: 'Verified after sessions', detail: 'Only players who completed a session can leave a review, so ratings stay honest.' },
-            { title: 'Live coach ratings', detail: 'Each coach’s star rating recalculates automatically as new reviews come in.' },
-            { title: 'A good-fit guarantee', detail: 'Not the right match after your first session? We’ll pair you with another coach — no questions asked.' },
+            { title: 'Real player reviews', detail: 'Honest feedback from players who actually trained with each coach.' },
+            { title: 'Live coach ratings', detail: 'Each coach’s star rating reflects their track record with real players.' },
+            { title: 'Connect with confidence', detail: 'Reach out to as many specialists as you like to find your best fit.' },
           ]}
           visual={<ReviewsMock />}
         />
@@ -544,11 +557,11 @@ export default function LandingPage() {
           reverse
           eyebrow="Messaging & support"
           title={<>Questions?<br />Just ask</>}
-          intro="Message coaches directly to sort out the details, and lean on AI support any time of day."
+          intro="Once a coach accepts your request, message them directly — and lean on AI support any time of day."
           points={[
-            { title: 'Message coaches directly', detail: 'Coordinate timing, location, and goals right inside CoachGo.' },
-            { title: 'AI support, 24/7', detail: 'Get instant answers about booking, payments, and how the platform works.' },
-            { title: 'Pay simply with Venmo', detail: 'After a coach confirms, pay them directly with a one-tap Venmo link.' },
+            { title: 'Message connected coaches', detail: 'When a coach accepts, in-app messaging opens to sort out the details.' },
+            { title: 'AI support, 24/7', detail: 'Get instant answers about connecting and how the platform works.' },
+            { title: 'Plans set directly', detail: 'Scheduling and payment are arranged between you and your coach.' },
           ]}
           visual={<MessagingMock />}
         />
@@ -562,9 +575,9 @@ export default function LandingPage() {
                 <h2 className="display-lg mt-5 mb-10">Up and training<br />in minutes</h2>
                 <div className="space-y-8">
                   {[
-                    { n: '1', t: 'Find your coach', d: 'Filter by specialty, location, price, and rating to find the right specialist.' },
-                    { n: '2', t: 'Book a session', d: 'Choose a session type and an available time, then confirm in seconds.' },
-                    { n: '3', t: 'Train & improve', d: 'Show up, get better, and leave a review to help the next player.' },
+                    { n: '1', t: 'Discover coaches', d: 'Filter by specialty, location, price, and rating to find the right specialist.' },
+                    { n: '2', t: 'Connect', d: 'Tap Connect and share your contact info — the coach reaches out directly.' },
+                    { n: '3', t: 'Train your way', d: 'Plan scheduling and pricing together, then show up and get better.' },
                   ].map((s, i) => (
                     <Reveal key={s.n} delay={i * 0.08} className="">
                       <div className="flex gap-6 items-start">
@@ -592,7 +605,7 @@ export default function LandingPage() {
                       <p className="text-xs mb-3" style={{ color: 'var(--ink-faint)' }}>Hitting · San Diego, CA</p>
                       <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid var(--line)' }}>
                         <span className="font-display text-xl" style={{ color: 'var(--ink)' }}>$120<span className="text-xs ml-1" style={{ color: 'var(--ink-faint)' }}>/ session</span></span>
-                        <span className="text-sm px-3 py-1.5 rounded-full" style={{ background: 'var(--black)', color: 'var(--paper)' }}>Book now</span>
+                        <span className="text-sm px-3 py-1.5 rounded-full" style={{ background: 'var(--black)', color: 'var(--paper)' }}>Connect</span>
                       </div>
                     </div>
                   </div>
@@ -646,9 +659,9 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid md:grid-cols-3 gap-5">
               {[
-                { Icon: Clock, t: 'Book in 60 seconds', d: 'Pick a coach, choose a slot, confirm. No waitlists.', tint: 'rgba(173,197,215,0.5)' },
+                { Icon: Clock, t: 'Connect in seconds', d: 'Find a coach, tap Connect, share your contact info.', tint: 'rgba(173,197,215,0.5)' },
                 { Icon: ShieldCheck, t: 'Vetted coaches', d: 'Hand-picked specialists with verified credentials.', tint: 'rgba(185,203,166,0.5)' },
-                { Icon: Wallet, t: 'Pay with Venmo', d: 'Pay directly, only after the coach confirms.', tint: 'rgba(219,167,132,0.5)' },
+                { Icon: Wallet, t: 'Plans direct with coach', d: 'Scheduling and payment are arranged with your coach.', tint: 'rgba(219,167,132,0.5)' },
               ].map((c, i) => (
                 <Reveal key={c.t} delay={i * 0.08}>
                   <div className="cg-card cg-card-hover p-7 h-full">
@@ -735,11 +748,21 @@ function BottomCTA() {
     <section ref={ref} className="relative py-28 md:py-40 overflow-hidden">
       <motion.div aria-hidden className="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 z-0"
         style={{ x: batX, opacity: fade }}>
-        <Bat size={340} />
+        <motion.div
+          animate={reduce ? undefined : { y: [0, -14, 0], rotate: [0, -1.5, 0] }}
+          transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <Bat size={340} />
+        </motion.div>
       </motion.div>
       <motion.div aria-hidden className="hidden md:block absolute right-[6%] top-1/2 -translate-y-1/2 z-0"
         style={{ x: ballX, opacity: fade }}>
-        <Baseball size={130} />
+        <motion.div
+          animate={reduce ? undefined : { y: [0, 16, 0] }}
+          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 0.4 }}
+        >
+          <Baseball size={130} />
+        </motion.div>
       </motion.div>
 
       <div className="max-w-3xl mx-auto px-4 text-center relative z-10">

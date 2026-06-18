@@ -3,7 +3,7 @@ import { Copy, Check, Share2, Code2, Link2 } from 'lucide-react';
 
 /**
  * Lightweight coach marketing toolkit: copyable profile link, an embeddable
- * "Book me" button snippet, and one-tap social share. Pure client-side.
+ * "Connect with me" button snippet, and one-tap social share. Pure client-side.
  */
 export default function MarketingToolkit({
   profilePath,
@@ -11,13 +11,13 @@ export default function MarketingToolkit({
 }: { profilePath: string; coachName: string }) {
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://coachgonline.com';
   const url = `${origin}${profilePath}`;
-  const shareText = `Book a baseball session with ${coachName} on CoachGo`;
+  const shareText = `Connect with ${coachName} for baseball coaching on CoachGo`;
 
   const embed =
 `<a href="${url}" target="_blank" rel="noopener"
    style="display:inline-flex;align-items:center;gap:8px;background:#16130E;color:#F6F4EF;
    font-family:system-ui,sans-serif;font-size:15px;padding:12px 22px;border-radius:999px;
-   text-decoration:none;">⚾ Book me on CoachGo</a>`;
+   text-decoration:none;">⚾ Connect with me on CoachGo</a>`;
 
   const [copied, setCopied] = useState<string | null>(null);
   const copy = (key: string, text: string) => {
@@ -53,7 +53,7 @@ export default function MarketingToolkit({
 
       {/* Embed */}
       <p className="text-xs uppercase tracking-[0.14em] mb-2 flex items-center gap-1.5" style={{ color: 'var(--ink-faint)' }}>
-        <Code2 size={13} /> "Book me" embed
+        <Code2 size={13} /> "Connect with me" embed
       </p>
       <textarea
         readOnly

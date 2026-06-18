@@ -8,9 +8,8 @@ import { analytics } from '../firebase';
 
 export type FunnelEvent =
   | 'coach_view'        // player opened a coach profile
-  | 'booking_started'   // opened the booking flow
-  | 'booking_created'   // submitted a booking
-  | 'payment_clicked'   // tapped the Venmo pay link
+  | 'connect_started'   // opened the connect modal
+  | 'connect_sent'      // submitted a connection request
   | 'ai_match_run'      // ran AI coach matching
   | 'search_saved';     // saved a search
 

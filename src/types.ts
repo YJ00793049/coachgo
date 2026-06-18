@@ -1,8 +1,13 @@
 export type UserRole = 'player' | 'coach' | 'admin';
 export type Specialty = 'hitting' | 'pitching' | 'fielding' | 'strength';
 export type SkillLevel = 'beginner' | 'developing' | 'competitive';
-export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'declined' | 'reschedule_requested';
 export type LocationMode = 'facility' | 'travel' | 'virtual';
+
+// What a coach offers — informational only (no booking behind it).
+export type SessionOffering = '1-on-1' | 'group';
+
+// Connection request lifecycle (replaces the old booking lifecycle).
+export type ConnectionStatus = 'pending' | 'accepted' | 'ignored';
 
 export interface LocationModes {
   facility?: boolean;
@@ -32,10 +37,9 @@ export interface CoachProfile {
   bio: string;
   certifications: string[];
   years_experience: number;
-  price_per_session: number;
+  price_per_session: number;    // informational "starting at" price
+  session_offerings?: SessionOffering[]; // 1-on-1 / group tags
   rating: number;
-  session_types: string[];
-  availability: Record<string, any>;
   is_active: boolean;
   name?: string; // Joined from User
   avatar_url?: string; // Joined from User
@@ -47,80 +51,40 @@ export interface CoachProfile {
   affiliations?: Affiliation[];
   skills?: string[];
   reviews?: number;
-  venmo_handle?: string;
   video_url?: string;
-  packages?: SessionPackage[];
-  // ── Scheduling & booking depth ──
-  instant_book?: boolean;            // true → bookings auto-confirm
-  location_modes?: LocationModes;    // which session locations the coach offers
-  travel_radius_miles?: number;      // optional, for "travels to you"
-  buffer_minutes?: number;           // rest/travel gap enforced between sessions
-  timezone?: string;                 // IANA tz, e.g. "America/Los_Angeles"
-  // ── Supply-side tools ──
-  promo_codes?: PromoCode[];
+  // ── Profile enrichments (informational) ──
+  location_modes?: LocationModes;    // where the coach trains (in person / travels / virtual)
   academy_name?: string;             // facility / academy this coach belongs to
   gallery_urls?: string[];           // extra profile photos
 }
 
-export interface SessionPackage {
-  sessions: number;
-  discount_pct: number;
-  label: string;
-}
-
-export interface PromoCode {
-  code: string;
-  type: 'percent' | 'amount';
-  value: number;
-  active: boolean;
-}
-
 export interface PlayerProfile {
-  id: string;
+  id?: string;
   user_id: string;
-  age: number;
-  skill_level: SkillLevel;
-  primary_position: string;
+  name?: string;
+  age?: number;
+  grade?: string;             // e.g. "Sophomore", "8th grade"
+  primary_position?: string;  // e.g. "Shortstop", "Pitcher"
+  skill_level?: SkillLevel;
+  goals?: string;             // what the player wants to work on
+  bio?: string;
+  updated_at?: any;
 }
 
-export interface Booking {
+// A player asking a coach to connect. The coach reaches out directly.
+export interface Connection {
   id: string;
-  player_id: string;
-  coach_id: string;
-  session_type: string;
-  date: string;
-  time_slot: string;
-  status: BookingStatus;
-  total_price: number;
-  notes?: string;
-  coach_name?: string;
-  player_name?: string;
-  reschedule_date?: string;
-  reschedule_time?: string;
-  reschedule_note?: string;
-  reminder_sent_24h?: boolean;
-  session_count?: number;
-  is_package?: boolean;
-  // ── Scheduling & booking depth ──
-  location_mode?: LocationMode;
-  recurring_group_id?: string;   // links sessions in a standing/recurring series
-  is_recurring?: boolean;
-  timezone?: string;
-  promo_code?: string;
-  discount_amount?: number;
-}
-
-export interface WaitlistEntry {
-  id: string;
-  coach_id: string;
-  player_id: string;
-  player_name?: string;
-  coach_name?: string;
-  date: string;
-  time_slot: string;
-  session_type: string;
+  player_id: string;         // Firebase uid of the player
+  player_name: string;
+  coach_id: string;          // numeric MOCK id (e.g. "2")
+  coach_user_id: string;     // coach Firebase uid (rules + email lookup)
+  coach_name: string;
+  player_phone?: string | null;
+  player_email?: string | null;
+  player_note?: string;
+  status: ConnectionStatus;
   created_at: any;
-  notified?: boolean;
+  updated_at?: any;
 }
 
 export interface Review {

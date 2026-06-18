@@ -16,77 +16,26 @@ async function post(type: string, to: string, data: Record<string, any>) {
   }
 }
 
-// Player submits a booking → email to the COACH (accept/decline).
-export async function notifyCoachNewBooking({
-  coachEmail, coachName, playerName, sessionType, date, timeSlot, totalPrice,
-  skillLevel, notes, duration,
+// Player sends a connection request → email to the COACH with the player's
+// contact info so the coach can reach out directly.
+export async function notifyCoachConnectionRequest({
+  coachEmail, coachName, playerName, playerNote, playerPhone, playerEmail,
 }: {
   coachEmail: string; coachName: string; playerName: string;
-  sessionType: string; date: string; timeSlot: string; totalPrice: number;
-  skillLevel?: string; notes?: string; duration?: string;
+  playerNote?: string; playerPhone?: string | null; playerEmail?: string | null;
 }) {
-  await post('coach_new_booking', coachEmail, {
-    coachName, playerName, sessionType, date, timeSlot, totalPrice,
-    skillLevel, notes, duration,
+  await post('connect_request_coach', coachEmail, {
+    coachName, playerName, playerNote, playerPhone, playerEmail,
   });
 }
 
-// Player submits a booking → confirmation that the request was SENT (pending flow).
-export async function notifyPlayerBookingRequested({
-  playerEmail, playerName, coachName, sessionType, date, timeSlot,
+// Player sends a connection request → confirmation email back to the PLAYER.
+export async function notifyPlayerConnectionSent({
+  playerEmail, playerName, coachName,
 }: {
   playerEmail: string; playerName: string; coachName: string;
-  sessionType: string; date: string; timeSlot: string;
 }) {
-  await post('player_booking_requested', playerEmail, {
-    playerName, coachName, sessionType, date, timeSlot,
-  });
-}
-
-// Coach accepts → email to the PLAYER (with Venmo instructions).
-export async function notifyPlayerBookingConfirmed({
-  playerEmail, playerName, coachName, sessionType, date, timeSlot, totalPrice, venmoHandle,
-}: {
-  playerEmail: string; playerName: string; coachName: string;
-  sessionType: string; date: string; timeSlot: string; totalPrice: number; venmoHandle?: string;
-}) {
-  await post('player_booking_confirmed', playerEmail, {
-    playerName, coachName, sessionType, date, timeSlot, totalPrice, venmoHandle,
-  });
-}
-
-// Coach declines → email to the PLAYER.
-export async function notifyPlayerBookingDeclined({
-  playerEmail, playerName, coachName, sessionType, date,
-}: {
-  playerEmail: string; playerName: string; coachName: string;
-  sessionType: string; date: string;
-}) {
-  await post('player_booking_declined', playerEmail, {
-    playerName, coachName, sessionType, date,
-  });
-}
-
-// Player cancels → email to the COACH.
-export async function notifyCoachBookingCancelled({
-  coachEmail, coachName, playerName, sessionType, date,
-}: {
-  coachEmail: string; coachName: string; playerName: string;
-  sessionType: string; date: string;
-}) {
-  await post('player_booking_cancelled_to_coach', coachEmail, {
-    coachName, playerName, sessionType, date,
-  });
-}
-
-// 24h reminder → player or coach.
-export async function notifySessionReminder({
-  email, name, coachName, sessionType, date, timeSlot, isCoach,
-}: {
-  email: string; name: string; coachName: string;
-  sessionType: string; date: string; timeSlot: string; isCoach: boolean;
-}) {
-  await post('session_reminder', email, {
-    name, coachName, sessionType, date, timeSlot, isCoach,
+  await post('connect_request_player', playerEmail, {
+    playerName, coachName,
   });
 }

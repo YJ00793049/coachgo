@@ -31,12 +31,12 @@ export default function PrivacyPage() {
             </h2>
             <div className="space-y-4 leading-relaxed" style={bodyStyle}>
               <p>
-                We collect information that you provide directly to us when you create an account, book a session, or communicate with us. This includes:
+                We collect information that you provide directly to us when you create an account, connect with a coach, or communicate with us. This includes:
               </p>
               <ul className="list-disc pl-6 space-y-2">
                 <li><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Personal Information:</strong> Name, email address, phone number, and profile picture.</li>
-                <li><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Player Information:</strong> Age, skill level, and primary position for personalized coaching.</li>
-                <li><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Payment Information:</strong> Payments are made directly between players and coaches via Venmo. CoachGo does not process, store, or have access to any payment credentials.</li>
+                <li><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Player Information:</strong> Age, grade, skill level, position, and goals for personalized coaching.</li>
+                <li><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Connection Information:</strong> The contact details you choose to share with a coach when you send a connection request.</li>
                 <li><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Communications:</strong> Any messages you send to coaches or our support team.</li>
               </ul>
             </div>
@@ -51,8 +51,7 @@ export default function PrivacyPage() {
               <p>We use the information we collect to:</p>
               <ul className="list-disc pl-6 space-y-2">
                 <li>Provide, maintain, and improve our services.</li>
-                <li>Process your bookings and payments securely.</li>
-                <li>Facilitate communication between players and coaches.</li>
+                <li>Facilitate connections and communication between players and coaches.</li>
                 <li>Send you technical notices, updates, and support messages.</li>
                 <li>Personalize your experience on our platform.</li>
                 <li>Protect against fraudulent or illegal activity.</li>
@@ -86,7 +85,7 @@ export default function PrivacyPage() {
               </p>
               <ul className="list-disc pl-6 space-y-2">
                 <li><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Firebase:</strong> For authentication and database management.</li>
-                <li><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Venmo:</strong> Payments are sent directly from players to coaches via Venmo.</li>
+                <li><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Resend:</strong> To send connection and account emails on our behalf.</li>
                 <li><strong style={{ color: 'rgba(27,24,19,0.9)' }}>Google Analytics:</strong> To analyze how our service is used.</li>
               </ul>
             </div>

@@ -395,10 +395,10 @@ export default function MessagesPage() {
                     </div>
                     {activeConversation && userRole === 'player' && (
                       <Link
-                        to={`/book/${MOCK_COACHES.find(c => c.user_id === activeConversation.coach_id)?.id || activeConversation.coach_id}`}
-                        className="btn-primary py-2 px-4 text-xs"
+                        to={`/coaches/${MOCK_COACHES.find(c => c.user_id === activeConversation.coach_id)?.id || activeConversation.coach_id}`}
+                        className="btn-secondary py-2 px-4 text-xs"
                       >
-                        Book Session
+                        View profile
                       </Link>
                     )}
                   </div>

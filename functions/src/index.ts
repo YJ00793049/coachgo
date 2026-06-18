@@ -98,101 +98,34 @@ function layout(o: LayoutOpts): string {
 // ─── Per-type renderers ──────────────────────────────────────────────────────
 type Rendered = { subject: string; html: string };
 const RENDERERS: Record<string, (d: any) => Rendered> = {
-  coach_new_booking: (d) => ({
-    subject: `New booking request from ${d.playerName}`,
+  // A player wants to connect with a coach → email to the COACH.
+  connect_request_coach: (d) => ({
+    subject: `${d.playerName} wants to connect with you on CoachGo`,
     html: layout({
-      heading: 'New booking request',
-      intro: `Hi ${esc(d.coachName || 'Coach')}, <strong style="color:${C.ink}">${esc(d.playerName)}</strong> wants to train with you on CoachGo.`,
-      body: detailTable(
-        row('Player', d.playerName) +
-        row('Date', d.date) +
-        row('Time', d.timeSlot) +
-        row('Session', d.sessionType) +
-        row('Duration', d.duration || '1 hour') +
-        row('Skill level', d.skillLevel || '—') +
-        (d.notes ? row('Notes', d.notes) : '') +
-        row('Price', `$${d.totalPrice}`)
-      ),
-      buttonsHtml:
-        button(`${SITE}/dashboard`, 'Accept Booking', 'solid') +
-        button(`${SITE}/dashboard`, 'Decline Booking', 'outline'),
-      footerNote: 'Log in to your dashboard to accept or decline. The player will be notified of your decision.',
+      heading: 'New connection request',
+      intro: `Hi ${esc(d.coachName || 'Coach')}, <strong style="color:${C.ink}">${esc(d.playerName)}</strong> wants to connect with you on CoachGo.`,
+      body:
+        (d.playerNote
+          ? `<p style="margin:0 0 20px;font-family:${C.sans};font-size:15px;line-height:1.6;color:${C.inkSoft};font-style:italic;">“${esc(d.playerNote)}”</p>`
+          : '') +
+        detailTable(
+          row('Player', d.playerName) +
+          (d.playerPhone ? row('Phone', d.playerPhone) : '') +
+          (d.playerEmail ? row('Email', d.playerEmail) : '')
+        ) +
+        `<p style="margin:0 0 24px;font-family:${C.sans};font-size:15px;line-height:1.6;color:${C.inkSoft};">Reach out to them directly to discuss training plans.</p>`,
+      buttonsHtml: button(`${SITE}/dashboard`, 'View their profile', 'solid'),
+      footerNote: 'You can also accept the request in your dashboard to open in-app messaging with this player.',
     }),
   }),
 
-  player_booking_requested: (d) => ({
-    subject: `Your booking request was sent to ${d.coachName}`,
+  // Confirmation back to the PLAYER that their request was sent.
+  connect_request_player: (d) => ({
+    subject: `Your connection request was sent to ${d.coachName}`,
     html: layout({
       heading: 'Request sent',
       intro: `Hi ${esc(d.playerName || 'there')}, your request is on its way to <strong style="color:${C.ink}">${esc(d.coachName)}</strong>.`,
-      body: detailTable(
-        row('Coach', d.coachName) +
-        row('Date', d.date) +
-        row('Time', d.timeSlot) +
-        row('Session', d.sessionType)
-      ),
-      buttonsHtml: button(`${SITE}/dashboard`, 'View my dashboard', 'solid'),
-      footerNote: "The coach will confirm within 24 hours. You'll get an email as soon as they respond.",
-    }),
-  }),
-
-  player_booking_confirmed: (d) => ({
-    subject: `${d.coachName} confirmed your session!`,
-    html: layout({
-      heading: 'Your session is confirmed',
-      intro: `Hi ${esc(d.playerName || 'there')}, great news — <strong style="color:${C.ink}">${esc(d.coachName)}</strong> confirmed your session.`,
-      body:
-        detailTable(
-          row('Coach', d.coachName) +
-          row('Date', d.date) +
-          row('Time', d.timeSlot) +
-          row('Session', d.sessionType) +
-          row('Total', `$${d.totalPrice}`)
-        ) +
-        (d.venmoHandle
-          ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:rgba(0,140,255,0.06);border:1px solid rgba(0,140,255,0.25);border-radius:16px;margin:0 0 24px;">
-              <tr><td style="padding:18px 20px;font-family:${C.sans};">
-                <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:${C.ink};">Pay with Venmo</p>
-                <p style="margin:0;font-size:14px;line-height:1.6;color:${C.inkSoft};">Send <strong style="color:${C.ink}">$${esc(d.totalPrice)}</strong> to <strong style="color:${C.venmo}">@${esc(d.venmoHandle)}</strong> via Venmo. Payment is due after the coach confirms.</p>
-              </td></tr>
-            </table>`
-          : `<p style="margin:0 0 24px;font-family:${C.sans};font-size:14px;color:${C.inkSoft};">Payment is due after the coach confirms — your coach will share payment details.</p>`),
-      buttonsHtml: button(`${SITE}/dashboard`, 'View my dashboard', 'solid'),
-    }),
-  }),
-
-  player_booking_declined: (d) => ({
-    subject: 'Update on your session request',
-    html: layout({
-      heading: 'A quick update',
-      intro: `Hi ${esc(d.playerName || 'there')}, unfortunately ${esc(d.coachName || 'the coach')} wasn't able to make that time work${d.date ? ` on ${esc(d.date)}` : ''}.`,
-      body: `<p style="margin:0 0 24px;font-family:${C.sans};font-size:15px;line-height:1.6;color:${C.inkSoft};">Don't worry — there are other great specialists ready to help. Browse coaches and find a time that fits your schedule.</p>`,
-      buttonsHtml: button(`${SITE}/coaches`, 'Browse other coaches', 'solid'),
-    }),
-  }),
-
-  player_booking_cancelled_to_coach: (d) => ({
-    subject: `${d.playerName} cancelled their ${d.sessionType} session`,
-    html: layout({
-      heading: 'Booking cancelled',
-      intro: `Hi ${esc(d.coachName || 'Coach')}, <strong style="color:${C.ink}">${esc(d.playerName)}</strong> cancelled their <strong style="color:${C.ink}">${esc(d.sessionType)}</strong> session on ${esc(d.date)}.`,
-      buttonsHtml: button(`${SITE}/dashboard`, 'View my dashboard', 'solid'),
-    }),
-  }),
-
-  session_reminder: (d) => ({
-    subject: d.isCoach
-      ? `Reminder: your session tomorrow (${d.date})`
-      : `Reminder: your session with ${d.coachName} is tomorrow`,
-    html: layout({
-      heading: 'Session tomorrow',
-      intro: `Hi ${esc(d.name || 'there')}, a quick reminder about your upcoming session.`,
-      body: detailTable(
-        (!d.isCoach && d.coachName ? row('Coach', d.coachName) : '') +
-        row('Session', d.sessionType) +
-        row('Date', d.date) +
-        row('Time', d.timeSlot)
-      ),
+      body: `<p style="margin:0 0 24px;font-family:${C.sans};font-size:15px;line-height:1.6;color:${C.inkSoft};">They'll be in touch soon to talk through how they can help you train.</p>`,
       buttonsHtml: button(`${SITE}/dashboard`, 'View my dashboard', 'solid'),
     }),
   }),

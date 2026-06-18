@@ -23,7 +23,6 @@ import TermsPage from './pages/TermsPage';
 // Lazy-loaded heavy pages
 const CoachesPage        = lazy(() => import('./pages/CoachesPage'));
 const CoachProfilePage   = lazy(() => import('./pages/CoachProfilePage'));
-const BookingPage        = lazy(() => import('./pages/BookingPage'));
 const DashboardPage      = lazy(() => import('./pages/DashboardPage'));
 const AboutPage          = lazy(() => import('./pages/AboutPage'));
 const SupportPage        = lazy(() => import('./pages/SupportPage'));
@@ -31,7 +30,6 @@ const HelpCenterPage     = lazy(() => import('./pages/HelpCenterPage'));
 const ContactPage        = lazy(() => import('./pages/ContactPage'));
 const CoachOnboardingPage   = lazy(() => import('./pages/CoachOnboardingPage'));
 const CoachEditProfilePage  = lazy(() => import('./pages/CoachEditProfilePage'));
-const CoachAvailabilityPage = lazy(() => import('./pages/CoachAvailabilityPage'));
 const MessagesPage       = lazy(() => import('./pages/MessagesPage'));
 const PlayerProfilePage  = lazy(() => import('./pages/PlayerProfilePage'));
 const AdminPage          = lazy(() => import('./pages/AdminPage'));
@@ -81,22 +79,19 @@ function AnimatedRoutes() {
             <Route path="/coach-edit-profile" element={
               <ProtectedRoute><CoachEditProfilePage /></ProtectedRoute>
             } />
-            <Route path="/coach-availability" element={
-              <ProtectedRoute><CoachAvailabilityPage /></ProtectedRoute>
-            } />
             <Route path="/messages" element={
               <ProtectedRoute><MessagesPage /></ProtectedRoute>
             } />
             <Route path="/messages/:conversationId" element={
               <ProtectedRoute><MessagesPage /></ProtectedRoute>
             } />
-            <Route path="/book/:coachId" element={
-              <ProtectedRoute><BookingPage /></ProtectedRoute>
-            } />
             <Route path="/dashboard" element={
               <ProtectedRoute><DashboardPage /></ProtectedRoute>
             } />
             <Route path="/profile" element={
+              <ProtectedRoute><PlayerProfilePage /></ProtectedRoute>
+            } />
+            <Route path="/players/:id" element={
               <ProtectedRoute><PlayerProfilePage /></ProtectedRoute>
             } />
             <Route path="/admin" element={

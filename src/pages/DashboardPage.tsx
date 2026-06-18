@@ -1,270 +1,53 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../firebase';
-import { Calendar, Star, Plus, ChevronRight, Loader2, Trophy, Target, Clock, DollarSign, Users, TrendingUp, CheckCircle2, ExternalLink, BarChart2, Zap, Heart, X, Edit, CalendarDays, MessageSquare, CreditCard, RefreshCw, UserCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import {
+  Loader2, Users, Clock, CheckCircle2, Heart, Star, MessageSquare, Edit, Target,
+  ChevronRight, Phone, Mail, TrendingUp, Trophy, Zap, Link2, UserCircle, Eye, X, Check,
+} from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import PageTransition from '../components/PageTransition';
 import AnimatedCounter from '../components/AnimatedCounter';
 import MarketingToolkit from '../components/MarketingToolkit';
 import { notify } from '../utils/notifications';
 import { SPRING } from '../tokens';
-import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc, serverTimestamp, getDocs, deleteDoc, getCountFromServer } from 'firebase/firestore';
-import { LOCATION_MODE_META } from '../utils/scheduling';
-import type { LocationMode } from '../types';
+import { offeringLabels } from '../utils/offerings';
+import {
+  collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc,
+  serverTimestamp, getDocs, getCountFromServer,
+} from 'firebase/firestore';
 import { MOCK_COACHES } from './CoachesPage';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
-import { GlowingEffect } from '@/components/ui/glowing-effect-card';
-
-function buildVenmoUrl(handle: string, amount: number): string {
-  const note = encodeURIComponent('CoachGo Session');
-  return `https://venmo.com/u/${handle}?txn=pay&amount=${amount}&note=${note}`;
-}
-
-function generateCalendarLink(session: any, coachName: string) {
-  const title = encodeURIComponent(`CoachGo: ${session.session_type} with ${coachName}`);
-  const date = session.date?.replace(/-/g, '');
-  const timeMap: Record<string, string> = {
-    '7:00 AM': '070000', '8:00 AM': '080000', '9:00 AM': '090000', '10:00 AM': '100000',
-    '10:30 AM': '103000', '11:00 AM': '110000', '12:00 PM': '120000', '1:00 PM': '130000',
-    '2:00 PM': '140000', '3:00 PM': '150000', '3:30 PM': '153000', '4:00 PM': '160000',
-    '5:00 PM': '170000', '6:00 PM': '180000', '7:00 PM': '190000',
-  };
-  const startTime = timeMap[session.time_slot] || '090000';
-  const endHour = parseInt(startTime.slice(0, 2)) + 1;
-  const endTime = `${String(endHour).padStart(2, '0')}${startTime.slice(2)}`;
-  const details = encodeURIComponent(`Session Type: ${session.session_type}\nCoach: ${coachName}\nBooked via CoachGo`);
-  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${date}T${startTime}/${date}T${endTime}&details=${details}`;
-}
-
-// ─── REVIEW MODAL ───────────────────────────────────────────────────
-interface ReviewModalProps {
-  session: any;
-  coachName: string;
-  onClose: () => void;
-  onSubmit: (rating: number, comment: string) => Promise<void>;
-}
-
-function ReviewModal({ session, coachName, onClose, onSubmit }: ReviewModalProps) {
-  const [rating, setRating] = useState(0);
-  const [hovered, setHovered] = useState(0);
-  const [comment, setComment] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleSubmit = async () => {
-    if (rating === 0 || !comment.trim()) return;
-    setSubmitting(true);
-    await onSubmit(rating, comment.trim());
-    setSubmitted(true);
-    setSubmitting(false);
-    setTimeout(onClose, 1500);
-  };
-
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center px-4"
-        style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.25 }}
-          onClick={e => e.stopPropagation()}
-          role="dialog" aria-modal="true" aria-label="Leave a review"
-          className="w-full max-w-md rounded-3xl p-8"
-          style={{ background: '#FBFAF6', border: '1px solid rgba(27,24,19,0.08)' }}
-        >
-          {submitted ? (
-            <div className="text-center py-8">
-              <CheckCircle2 size={48} className="mx-auto mb-4" style={{ color: '#5E8C5A' }} />
-              <p className="font-bold text-ink text-xl mb-2">Review Submitted!</p>
-              <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>Thanks for sharing your feedback.</p>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-start justify-between mb-6">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#1B1813' }}>Leave a Review</p>
-                  <h3 className="font-display text-2xl text-ink">{coachName}</h3>
-                  <p className="text-sm mt-1" style={{ color: 'rgba(27,24,19,0.4)' }}>{session.session_type} · {session.date}</p>
-                </div>
-                <button onClick={onClose} className="p-2 rounded-xl hover:bg-[rgba(27,24,19,0.04)] transition-all" style={{ color: 'rgba(27,24,19,0.4)' }}>
-                  <X size={20} />
-                </button>
-              </div>
-
-              {/* Stars */}
-              <div className="mb-6">
-                <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(27,24,19,0.3)' }}>Your Rating</p>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <button
-                      key={star}
-                      onMouseEnter={() => setHovered(star)}
-                      onMouseLeave={() => setHovered(0)}
-                      onClick={() => setRating(star)}
-                      className="transition-transform hover:scale-110"
-                    >
-                      <Star
-                        size={32}
-                        fill={star <= (hovered || rating) ? '#C79A57' : 'transparent'}
-                        style={{ color: star <= (hovered || rating) ? '#C79A57' : 'rgba(27,24,19,0.15)', transition: 'all 0.15s' }}
-                      />
-                    </button>
-                  ))}
-                </div>
-                {rating > 0 && (
-                  <p className="text-xs mt-2 font-medium" style={{ color: '#C79A57' }}>
-                    {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent!'][rating]}
-                  </p>
-                )}
-              </div>
-
-              {/* Comment */}
-              <div className="mb-6">
-                <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(27,24,19,0.3)' }}>Your Review</p>
-                <textarea
-                  value={comment}
-                  onChange={e => setComment(e.target.value)}
-                  placeholder="How was your session? What did you improve?"
-                  rows={4}
-                  className="w-full rounded-2xl px-4 py-3 text-sm text-ink resize-none focus:outline-none transition-all"
-                  style={{ background: '#FFFFFF', border: '1px solid rgba(27,24,19,0.16)', color: '#1B1813' }}
-                />
-                <p className="text-[10px] mt-1 text-right" style={{ color: 'rgba(27,24,19,0.2)' }}>{comment.length}/500</p>
-              </div>
-
-              <button
-                onClick={handleSubmit}
-                disabled={rating === 0 || !comment.trim() || submitting}
-                className="w-full btn-primary py-4 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {submitting ? <Loader2 size={18} className="animate-spin" /> : <Star size={18} />}
-                {submitting ? 'Submitting...' : 'Submit Review'}
-              </button>
-            </>
-          )}
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
-  );
-}
-
-// ─── RESCHEDULE MODAL ───────────────────────────────────────────────
-const TIME_SLOTS = [
-  '7:00 AM','8:00 AM','9:00 AM','10:00 AM','10:30 AM','11:00 AM',
-  '12:00 PM','1:00 PM','2:00 PM','3:00 PM','3:30 PM','4:00 PM','5:00 PM','6:00 PM','7:00 PM',
-];
-
-interface RescheduleModalProps {
-  session: any;
-  coachName: string;
-  onClose: () => void;
-  onSubmit: () => Promise<void>;
-  date: string; setDate: (v: string) => void;
-  time: string; setTime: (v: string) => void;
-  note: string; setNote: (v: string) => void;
-  submitting: boolean;
-}
-
-function RescheduleModal({ session, coachName, onClose, onSubmit, date, setDate, time, setTime, note, setNote, submitting }: RescheduleModalProps) {
-  const today = new Date().toISOString().split('T')[0];
-  return (
-    <AnimatePresence>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center px-4"
-        style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
-        onClick={onClose}>
-        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25 }}
-          onClick={e => e.stopPropagation()}
-          role="dialog" aria-modal="true" aria-label="Request a reschedule"
-          className="w-full max-w-md rounded-3xl p-8"
-          style={{ background: '#FBFAF6', border: '1px solid rgba(27,24,19,0.08)' }}>
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#1B1813' }}>Request Reschedule</p>
-              <h3 className="font-display text-2xl text-ink">{session.session_type}</h3>
-              <p className="text-sm mt-1" style={{ color: 'rgba(27,24,19,0.4)' }}>with {coachName} · currently {session.date} at {session.time_slot}</p>
-            </div>
-            <button onClick={onClose} className="p-2 rounded-xl hover:bg-[rgba(27,24,19,0.04)] transition-all" style={{ color: 'rgba(27,24,19,0.4)' }}><X size={20} /></button>
-          </div>
-          <div className="space-y-4 mb-6">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-widest mb-2 block" style={{ color: 'rgba(27,24,19,0.3)' }}>New Date</label>
-              <input type="date" min={today} value={date} onChange={e => setDate(e.target.value)}
-                className="w-full rounded-2xl px-4 py-3 text-sm text-ink focus:outline-none"
-                style={{ background: 'rgba(27,24,19,0.04)', border: '1px solid rgba(27,24,19,0.08)', colorScheme: 'light' }} />
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-widest mb-2 block" style={{ color: 'rgba(27,24,19,0.3)' }}>New Time</label>
-              <select value={time} onChange={e => setTime(e.target.value)}
-                className="w-full rounded-2xl px-4 py-3 text-sm text-ink focus:outline-none"
-                style={{ background: '#FBFAF6', border: '1px solid rgba(27,24,19,0.08)' }}>
-                <option value="">Select time...</option>
-                {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-widest mb-2 block" style={{ color: 'rgba(27,24,19,0.3)' }}>Note (optional)</label>
-              <textarea value={note} onChange={e => setNote(e.target.value)}
-                placeholder="Reason for reschedule..."
-                rows={3}
-                className="w-full rounded-2xl px-4 py-3 text-sm text-ink resize-none focus:outline-none"
-                style={{ background: 'rgba(27,24,19,0.04)', border: '1px solid rgba(27,24,19,0.08)' }} />
-            </div>
-          </div>
-          <button onClick={onSubmit} disabled={!date || !time || submitting}
-            className="w-full btn-primary py-4 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
-            {submitting ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
-            {submitting ? 'Submitting...' : 'Request Reschedule'}
-          </button>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
-  );
-}
 
 // ─── MAIN DASHBOARD ─────────────────────────────────────────────────
 export default function DashboardPage() {
   const [user] = useAuthState(auth);
+  const navigate = useNavigate();
   const [userRole, setUserRole] = useState<'player' | 'coach' | null>(null);
-  const [bookings, setBookings] = useState<any[]>([]);
-  const [favorites, setFavorites] = useState<any[]>([]);
-  const [coachBookings, setCoachBookings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [roleLoading, setRoleLoading] = useState(true);
-  const [coachProfilePhoto, setCoachProfilePhoto] = useState<string | null>(null);
-  const [coachProfilesCache, setCoachProfilesCache] = useState<Record<string, { name: string; specialty: string; avatar_url: string }>>({});
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const reminderSentIds = useRef<Set<string>>(new Set());
-  const fetchedCoachIds = useRef<Set<string>>(new Set());
-  const [reviewSession, setReviewSession] = useState<any | null>(null);
-  const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(new Set());
-  const [rescheduleSession, setRescheduleSession] = useState<any | null>(null);
-  const [rescheduleDate, setRescheduleDate] = useState('');
-  const [rescheduleTime, setRescheduleTime] = useState('');
-  const [rescheduleNote, setRescheduleNote] = useState('');
-  const [rescheduling, setRescheduling] = useState(false);
-  const [myWaitlist, setMyWaitlist] = useState<any[]>([]);
-  const [coachWaitlist, setCoachWaitlist] = useState<any[]>([]);
-  const [profileViews, setProfileViews] = useState<number | null>(null);
-  const [coachProfileData, setCoachProfileData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
+  const [sentConnections, setSentConnections] = useState<any[]>([]);   // player → coaches
+  const [incomingConnections, setIncomingConnections] = useState<any[]>([]); // coach ← players
+  const [favorites, setFavorites] = useState<any[]>([]);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const [coachProfilePhoto, setCoachProfilePhoto] = useState<string | null>(null);
+  const [coachProfileData, setCoachProfileData] = useState<any>(null);
+  const [profileViews, setProfileViews] = useState<number | null>(null);
+  const [playerProfile, setPlayerProfile] = useState<any>(null);
+  const [playerName, setPlayerName] = useState('');
+
+  // Role + own profile
   useEffect(() => {
     if (!user) return;
-    const fetchRole = async () => {
+    (async () => {
       try {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         const role = userDoc.exists() ? (userDoc.data().role || 'player') : 'player';
         setUserRole(role);
+        setPlayerName(userDoc.exists() ? (userDoc.data().name || user.displayName || 'Player') : (user.displayName || 'Player'));
         if (role === 'coach') {
           try {
             const coachDoc = await getDoc(doc(db, 'coach_profiles', user.uid));
@@ -273,61 +56,51 @@ export default function DashboardPage() {
               setCoachProfileData(coachDoc.data());
             }
           } catch { /* non-critical */ }
+        } else {
+          try {
+            const pDoc = await getDoc(doc(db, 'players', user.uid));
+            if (pDoc.exists()) setPlayerProfile(pDoc.data());
+          } catch { /* non-critical */ }
         }
       } catch {
         setUserRole('player');
       } finally {
         setRoleLoading(false);
       }
-    };
-    fetchRole();
+    })();
   }, [user]);
 
+  // Connections + favorites listeners
   useEffect(() => {
     if (!user) return;
+    const byCreated = (a: any, b: any) => (b.created_at?.seconds || 0) - (a.created_at?.seconds || 0);
 
-    const qPlayer = query(collection(db, 'bookings'), where('player_id', '==', user.uid));
-    const unsubPlayer = onSnapshot(qPlayer, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setBookings(data.sort((a: any, b: any) => (b.created_at?.seconds || 0) - (a.created_at?.seconds || 0)));
-      setLoading(false);
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'bookings'));
+    const unsubSent = onSnapshot(
+      query(collection(db, 'connections'), where('player_id', '==', user.uid)),
+      (snap) => { setSentConnections(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(byCreated)); setLoading(false); },
+      (err) => { handleFirestoreError(err, OperationType.GET, 'connections'); setLoading(false); },
+    );
 
-    const qCoach = query(collection(db, 'bookings'), where('coach_id', '==', user.uid));
-    const unsubCoach = onSnapshot(qCoach, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setCoachBookings(data.sort((a: any, b: any) => (b.created_at?.seconds || 0) - (a.created_at?.seconds || 0)));
-      setLoading(false);
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'bookings'));
+    const unsubIncoming = onSnapshot(
+      query(collection(db, 'connections'), where('coach_user_id', '==', user.uid)),
+      (snap) => { setIncomingConnections(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(byCreated)); setLoading(false); },
+      (err) => { handleFirestoreError(err, OperationType.GET, 'connections'); setLoading(false); },
+    );
 
-    const qFav = query(collection(db, 'favorites'), where('user_id', '==', user.uid));
-    const unsubFav = onSnapshot(qFav, (snap) => {
-      const data = snap.docs.map(d => {
-        const d2 = d.data();
-        const coach = MOCK_COACHES.find(c => c.id === d2.coach_id || c.user_id === d2.coach_id);
-        return { id: d.id, ...d2, coach };
-      }).filter(f => f.coach);
-      setFavorites(data);
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'favorites'));
+    const unsubFav = onSnapshot(
+      query(collection(db, 'favorites'), where('user_id', '==', user.uid)),
+      (snap) => {
+        const data = snap.docs.map(d => {
+          const d2 = d.data();
+          const coach = MOCK_COACHES.find(c => c.id === d2.coach_id || c.user_id === d2.coach_id);
+          return { id: d.id, ...d2, coach };
+        }).filter(f => f.coach);
+        setFavorites(data);
+      },
+      (err) => handleFirestoreError(err, OperationType.GET, 'favorites'),
+    );
 
-    // Track which bookings this player has already reviewed
-    const qReviews = query(collection(db, 'reviews'), where('player_id', '==', user.uid));
-    const unsubReviews = onSnapshot(qReviews, (snap) => {
-      setReviewedBookingIds(new Set(snap.docs.map(d => d.data().booking_id)));
-    });
-
-    // Waitlist entries — as a player (mine) and as a coach (for my slots)
-    const qMyWait = query(collection(db, 'waitlists'), where('player_id', '==', user.uid));
-    const unsubMyWait = onSnapshot(qMyWait, (snap) => {
-      setMyWaitlist(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, () => {});
-
-    const qCoachWait = query(collection(db, 'waitlists'), where('coach_id', '==', user.uid));
-    const unsubCoachWait = onSnapshot(qCoachWait, (snap) => {
-      setCoachWaitlist(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, () => {});
-
-    return () => { unsubPlayer(); unsubCoach(); unsubFav(); unsubReviews(); unsubMyWait(); unsubCoachWait(); };
+    return () => { unsubSent(); unsubIncoming(); unsubFav(); };
   }, [user]);
 
   // Profile view count (coach analytics)
@@ -341,345 +114,126 @@ export default function DashboardPage() {
     })();
   }, [user, userRole]);
 
-  useEffect(() => {
-    if (!user || !userRole || (bookings.length === 0 && coachBookings.length === 0)) return;
-    const sendReminders = async () => {
-      const now = new Date();
-      const in23h = new Date(now.getTime() + 23 * 60 * 60 * 1000);
-      const in25h = new Date(now.getTime() + 25 * 60 * 60 * 1000);
-      const sessions = userRole === 'coach' ? coachBookings : bookings;
-      const timeMap: Record<string, [number, number]> = {
-        '7:00 AM':[7,0],'8:00 AM':[8,0],'9:00 AM':[9,0],'10:00 AM':[10,0],
-        '10:30 AM':[10,30],'11:00 AM':[11,0],'12:00 PM':[12,0],'1:00 PM':[13,0],
-        '2:00 PM':[14,0],'3:00 PM':[15,0],'3:30 PM':[15,30],'4:00 PM':[16,0],
-        '5:00 PM':[17,0],'6:00 PM':[18,0],'7:00 PM':[19,0],
-      };
-      for (const session of sessions) {
-        if (session.status !== 'confirmed' || session.reminder_sent_24h || reminderSentIds.current.has(session.id)) continue;
-        try {
-          const parts = session.date?.split('-').map(Number);
-          if (!parts || parts.length < 3) continue;
-          const [h, m] = timeMap[session.time_slot] || [9, 0];
-          const sessionDate = new Date(parts[0], parts[1] - 1, parts[2], h, m);
-          if (sessionDate >= in23h && sessionDate <= in25h) {
-            reminderSentIds.current.add(session.id);
-            await updateDoc(doc(db, 'bookings', session.id), { reminder_sent_24h: true });
-            const { notifySessionReminder } = await import('../utils/sendEmail');
-            await notifySessionReminder({
-              email: user.email || '',
-              name: user.displayName || 'User',
-              coachName: userRole === 'coach' ? (session.player_name || 'Player') : getCoachName(session.coach_id),
-              sessionType: session.session_type,
-              date: session.date,
-              timeSlot: session.time_slot,
-              isCoach: userRole === 'coach',
-            });
-          }
-        } catch { /* non-critical */ }
-      }
-    };
-    sendReminders();
-  }, [bookings, coachBookings, userRole]);
-
-  const cancelBooking = async (bookingId: string) => {
-    setUpdatingId(bookingId);
+  // ── Coach: accept / ignore a connection ──
+  const respondToConnection = async (conn: any, status: 'accepted' | 'ignored') => {
+    setUpdatingId(conn.id);
     try {
-      await updateDoc(doc(db, 'bookings', bookingId), { status: 'cancelled' });
-      // Notify the coach of cancellation
-      const booking = bookings.find(b => b.id === bookingId);
-      if (booking) {
-        try {
-          const coachUserDoc = await getDoc(doc(db, 'users', booking.coach_id));
-          const coachEmail = coachUserDoc.exists() ? coachUserDoc.data().email : null;
-          if (coachEmail) {
-            const { notifyCoachBookingCancelled } = await import('../utils/sendEmail');
-            await notifyCoachBookingCancelled?.({
-              coachEmail,
-              coachName: getCoachName(booking.coach_id),
-              playerName: booking.player_name || 'Player',
-              sessionType: booking.session_type,
-              date: booking.date,
-            });
-          }
-        } catch { /* non-critical */ }
-      }
+      await updateDoc(doc(db, 'connections', conn.id), { status, updated_at: serverTimestamp() });
+      notify(conn.player_id, {
+        type: status === 'accepted' ? 'connection_accepted' : 'connection_ignored',
+        title: status === 'accepted'
+          ? `${conn.coach_name || 'Your coach'} accepted your request`
+          : 'Update on your connection request',
+        body: status === 'accepted'
+          ? 'You can now message them in the app to plan your training.'
+          : `${conn.coach_name || 'The coach'} isn't able to take you on right now.`,
+        link: '/dashboard',
+      });
     } catch (err) {
-      console.error(err);
+      handleFirestoreError(err, OperationType.WRITE, 'connections');
     } finally {
       setUpdatingId(null);
     }
   };
 
-  const requestReschedule = async () => {
-    if (!rescheduleSession || !rescheduleDate || !rescheduleTime) return;
-    setRescheduling(true);
+  // ── Open (or create) a conversation, then go to it ──
+  const openConversation = async (coachUid: string, playerUid: string, coachName: string, pName: string) => {
     try {
-      await updateDoc(doc(db, 'bookings', rescheduleSession.id), {
-        status: 'reschedule_requested',
-        reschedule_date: rescheduleDate,
-        reschedule_time: rescheduleTime,
-        reschedule_note: rescheduleNote,
-      });
-      notify(rescheduleSession.coach_id, { type: 'reschedule_request', title: 'Reschedule requested', body: `${rescheduleSession.player_name || 'A player'} wants ${rescheduleDate} at ${rescheduleTime}.`, link: '/dashboard' });
-      setRescheduleSession(null);
-      setRescheduleDate(''); setRescheduleTime(''); setRescheduleNote('');
-    } catch (err) { console.error(err); }
-    finally { setRescheduling(false); }
-  };
-
-  const leaveWaitlist = async (id: string) => {
-    try { await deleteDoc(doc(db, 'waitlists', id)); }
-    catch (err) { console.error(err); }
-  };
-
-  const notifyWaitlist = async (id: string) => {
-    setUpdatingId(id);
-    try {
-      await updateDoc(doc(db, 'waitlists', id), { notified: true });
-      const w = coachWaitlist.find(x => x.id === id);
-      notify(w?.player_id, { type: 'waitlist', title: 'A waitlist spot may be open', body: `${w?.session_type || 'A session'} on ${w?.date} at ${w?.time_slot} — check with your coach.`, link: '/coaches' });
-    }
-    catch (err) { console.error(err); }
-    finally { setUpdatingId(null); }
-  };
-
-  const acceptReschedule = async (bookingId: string, newDate: string, newTime: string) => {
-    setUpdatingId(bookingId);
-    try {
-      await updateDoc(doc(db, 'bookings', bookingId), {
-        status: 'confirmed',
-        date: newDate,
-        time_slot: newTime,
-        reschedule_date: null,
-        reschedule_time: null,
-        reschedule_note: null,
-      });
-      const b = coachBookings.find(x => x.id === bookingId);
-      notify(b?.player_id, { type: 'reschedule_resolved', title: 'Reschedule accepted', body: `${b?.session_type || 'Session'} moved to ${newDate} at ${newTime}`, link: '/dashboard' });
-    } catch (err) { console.error(err); }
-    finally { setUpdatingId(null); }
-  };
-
-  const declineReschedule = async (bookingId: string) => {
-    setUpdatingId(bookingId);
-    try {
-      await updateDoc(doc(db, 'bookings', bookingId), {
-        status: 'confirmed',
-        reschedule_date: null,
-        reschedule_time: null,
-        reschedule_note: null,
-      });
-      const b = coachBookings.find(x => x.id === bookingId);
-      notify(b?.player_id, { type: 'reschedule_resolved', title: 'Reschedule declined', body: `Your original time for ${b?.session_type || 'the session'} stands.`, link: '/dashboard' });
-    } catch (err) { console.error(err); }
-    finally { setUpdatingId(null); }
-  };
-
-  const updateBookingStatus = async (bookingId: string, status: 'confirmed' | 'declined' | 'completed') => {
-    setUpdatingId(bookingId);
-    try {
-      await updateDoc(doc(db, 'bookings', bookingId), { status });
-
-      const booking = coachBookings.find(b => b.id === bookingId);
-      if (booking && status !== 'completed') {
-        const playerDoc = await getDoc(doc(db, 'users', booking.player_id));
-        const playerEmail = playerDoc.exists() ? playerDoc.data().email : null;
-        // Fetch coach name from profile for emails (more reliable than displayName)
-        let coachName = user?.displayName || 'Your Coach';
-        try {
-          const coachDoc = await getDoc(doc(db, 'coach_profiles', user!.uid));
-          if (coachDoc.exists()) coachName = coachDoc.data().name || coachName;
-        } catch { /* fall back to displayName */ }
-
-        if (status === 'confirmed' && playerEmail) {
-          const { notifyPlayerBookingConfirmed } = await import('../utils/sendEmail');
-          await notifyPlayerBookingConfirmed({
-            playerEmail,
-            playerName: booking.player_name || 'Player',
-            coachName,
-            sessionType: booking.session_type,
-            date: booking.date,
-            timeSlot: booking.time_slot,
-            totalPrice: booking.total_price,
-            venmoHandle: booking.coach_venmo_handle || MOCK_COACHES.find(c => c.user_id === booking.coach_id)?.venmo_handle || undefined,
-          });
-        }
-
-        if (status === 'declined' && playerEmail) {
-          const { notifyPlayerBookingDeclined } = await import('../utils/sendEmail');
-          await notifyPlayerBookingDeclined({
-            playerEmail,
-            playerName: booking.player_name || 'Player',
-            coachName,
-            sessionType: booking.session_type,
-            date: booking.date,
-          });
-        }
-
-        if (status === 'confirmed') {
-          notify(booking.player_id, { type: 'booking_confirmed', title: `Confirmed with ${coachName}`, body: `${booking.session_type} · ${booking.date} at ${booking.time_slot}`, link: '/dashboard' });
-        } else if (status === 'declined') {
-          notify(booking.player_id, { type: 'booking_declined', title: 'Booking declined', body: `${coachName} couldn't take ${booking.session_type} on ${booking.date}.`, link: '/coaches' });
-        }
-      }
+      const snap = await getDocs(query(
+        collection(db, 'conversations'),
+        where('coach_id', '==', coachUid),
+        where('player_id', '==', playerUid),
+      ));
+      const convoId = !snap.empty ? snap.docs[0].id : (await addDoc(collection(db, 'conversations'), {
+        coach_id: coachUid,
+        player_id: playerUid,
+        participants: [coachUid, playerUid],
+        last_message: '',
+        last_message_at: serverTimestamp(),
+        unread_count_coach: 0,
+        unread_count_player: 0,
+        coach_name: coachName,
+        player_name: pName,
+      })).id;
+      navigate(`/messages/${convoId}`);
     } catch (err) {
-      console.error(err);
-    } finally {
-      setUpdatingId(null);
+      handleFirestoreError(err, OperationType.WRITE, 'conversations');
     }
   };
 
-  const submitReview = async (rating: number, comment: string) => {
-  if (!user || !reviewSession) return;
-  try {
-    const userDoc = await getDoc(doc(db, 'users', user.uid));
-    const playerName = userDoc.exists()
-      ? userDoc.data().name || user.displayName || 'Player'
-      : user.displayName || 'Player';
+  const getMockCoach = (conn: any) =>
+    MOCK_COACHES.find(c => c.id === conn.coach_id || c.user_id === conn.coach_user_id);
 
-    // Write the review
-    await addDoc(collection(db, 'reviews'), {
-      booking_id: reviewSession.id,
-      coach_id: reviewSession.coach_id,
-      player_id: user.uid,
-      player_name: playerName,
-      rating,
-      comment,
-      created_at: serverTimestamp(),
-    });
+  // Derived
+  const pendingIncoming = incomingConnections.filter(c => c.status === 'pending');
+  const acceptedIncoming = incomingConnections.filter(c => c.status === 'accepted');
+  const uniquePlayers = new Set(acceptedIncoming.map(c => c.player_id)).size;
+  const acceptRate = incomingConnections.length > 0
+    ? Math.round((acceptedIncoming.length / incomingConnections.length) * 100)
+    : 0;
 
-    // Recalculate and update coach's avg rating in Firestore
-    try {
-      const reviewsSnap = await getDocs(
-        query(collection(db, 'reviews'), where('coach_id', '==', reviewSession.coach_id))
-      );
-      // Include the new rating in case Firestore hasn't replicated it yet
-      const allRatings = [...reviewsSnap.docs.map(d => d.data().rating as number), rating];
-      const avgRating = allRatings.reduce((sum, r) => sum + r, 0) / allRatings.length;
-      await updateDoc(doc(db, 'coach_profiles', reviewSession.coach_id), {
-        rating: Math.round(avgRating * 10) / 10,
-        reviews: allRatings.length,
-      });
-    } catch (ratingErr) {
-      console.warn('Rating update blocked by Firestore rules:', ratingErr);
-    }
-  } catch (err) {
-    console.error('Failed to submit review:', err);
-  }
-};
+  const acceptedSent = sentConnections.filter(c => c.status === 'accepted');
+  const pendingSent = sentConnections.filter(c => c.status === 'pending');
 
-  // Fetch Firestore coach profiles for any coach not in MOCK_COACHES
-  useEffect(() => {
-    const allCoachIds = [...new Set([...bookings, ...coachBookings].map(b => b.coach_id).filter(Boolean))];
-    const unknownIds = allCoachIds.filter(id => !MOCK_COACHES.find(c => c.user_id === id) && !fetchedCoachIds.current.has(id));
-    if (unknownIds.length === 0) return;
-    const fetchUnknown = async () => {
-      unknownIds.forEach(id => fetchedCoachIds.current.add(id));
-      const results: Record<string, { name: string; specialty: string; avatar_url: string }> = {};
-      await Promise.all(unknownIds.map(async (id) => {
-        try {
-          const snap = await getDoc(doc(db, 'coach_profiles', id));
-          if (snap.exists()) {
-            const d = snap.data();
-            results[id] = { name: d.name || 'Coach', specialty: d.specialty || '', avatar_url: d.photo_url || '' };
-          }
-        } catch { /* non-critical */ }
-      }));
-      if (Object.keys(results).length > 0) setCoachProfilesCache(prev => ({ ...prev, ...results }));
-    };
-    fetchUnknown();
-  }, [bookings, coachBookings]);
-
-  const getCoachName = (coachId: string) =>
-    MOCK_COACHES.find(c => c.user_id === coachId)?.name || coachProfilesCache[coachId]?.name || 'Unknown Coach';
-  const getCoachSpecialty = (coachId: string) =>
-    MOCK_COACHES.find(c => c.user_id === coachId)?.specialty || coachProfilesCache[coachId]?.specialty || '';
-  const getCoachAvatar = (coachId: string) =>
-    MOCK_COACHES.find(c => c.user_id === coachId)?.avatar_url || coachProfilesCache[coachId]?.avatar_url || '';
-
-  const upcomingSessions = bookings.filter(b => ['confirmed', 'pending', 'reschedule_requested'].includes(b.status));
-  const pastSessions = bookings.filter(b => b.status === 'completed');
-  const today = new Date().toISOString().split('T')[0];
-
-  const completionItems = [
-    { label: 'Account created', done: true },
-    { label: 'Display name set', done: !!user?.displayName },
-    { label: 'First session booked', done: bookings.length > 0 },
-    { label: 'Favorite a coach', done: favorites.length > 0 },
-    user?.providerData?.[0]?.providerId === 'google.com'
-      ? { label: 'Google account connected', done: true }
-      : { label: 'Email verified', done: !!user?.emailVerified },
-  ];
-  const completionPct = Math.round((completionItems.filter(i => i.done).length / completionItems.length) * 100);
-  const nextStep = completionItems.find(i => !i.done);
-
-  const pendingCoachSessions = coachBookings.filter(b => b.status === 'pending');
-  const rescheduleRequestsForCoach = coachBookings.filter(b => b.status === 'reschedule_requested');
-  const upcomingCoachSessions = coachBookings.filter(b => b.status === 'confirmed');
-  const completedCoachSessions = coachBookings.filter(b => b.status === 'completed');
-  const totalRevenue = completedCoachSessions.reduce((sum, b) => sum + (b.total_price || 0), 0);
-  const uniquePlayers = new Set(coachBookings.filter(b => ['confirmed', 'completed'].includes(b.status)).map(b => b.player_id)).size;
-
-  // Analytics: conversion (views → bookings) and repeat-client rate
-  const totalBookingsCount = coachBookings.length;
-  const conversionRate = (profileViews && profileViews > 0)
-    ? Math.min(100, Math.round((totalBookingsCount / profileViews) * 100))
-    : null;
-  const playerBookingCounts = coachBookings
-    .filter(b => ['confirmed', 'completed'].includes(b.status))
-    .reduce((acc: Record<string, number>, b) => { acc[b.player_id] = (acc[b.player_id] || 0) + 1; return acc; }, {});
-  const repeatClients = Object.values(playerBookingCounts).filter((n) => (n as number) > 1).length;
-  const repeatRate = uniquePlayers > 0 ? Math.round((repeatClients / uniquePlayers) * 100) : 0;
-
-  // Profile completeness + nudges
+  // Coach profile strength (booking fields removed)
   const cp = coachProfileData || {};
   const completenessItems = [
     { label: 'Profile photo', done: !!(cp.photo_url || coachProfilePhoto), nudge: 'Players skim photos first — add a clear headshot.' },
-    { label: 'Intro video', done: !!cp.video_url, nudge: 'Coaches with an intro video get 3× more bookings.' },
+    { label: 'Intro video', done: !!cp.video_url, nudge: 'Coaches with an intro video get 3× more connections.' },
     { label: 'Bio', done: (cp.bio || '').length >= 20, nudge: 'A short bio builds trust with parents and players.' },
     { label: 'Skill tags', done: Array.isArray(cp.skills) && cp.skills.length > 0, nudge: 'Tag what you teach so the right players find you.' },
-    { label: 'Pricing', done: (Array.isArray(cp.session_types_with_price) && cp.session_types_with_price.length > 0) || cp.price_per_session > 0, nudge: 'Set your session types and prices.' },
-    { label: 'Venmo handle', done: !!cp.venmo_handle, nudge: 'Required so players can pay you after sessions.' },
-    { label: 'Availability', done: !!(cp.availability && Object.values(cp.availability).some((a: any) => Array.isArray(a) && a.length > 0)), nudge: 'Add weekly times so players can self-book.' },
+    { label: 'What you offer', done: Array.isArray(cp.session_offerings) && cp.session_offerings.length > 0, nudge: 'Let players know if you do 1-on-1, group, or both.' },
+    { label: 'Starting price', done: (cp.price_per_session || 0) > 0, nudge: 'Show a starting price so players know what to expect.' },
     { label: 'Affiliations', done: Array.isArray(cp.affiliations) && cp.affiliations.length > 0, nudge: 'Show teams/schools to back up your credentials.' },
   ];
   const profileStrength = Math.round(completenessItems.filter(i => i.done).length / completenessItems.length * 100);
   const topNudge = completenessItems.find(i => !i.done);
 
-  const monthlyRevenue = completedCoachSessions.reduce((acc: Record<string, number>, b) => {
-    if (!b.date) return acc;
-    const [y, mo] = b.date.split('-');
-    const key = `${y}-${mo}`;
-    acc[key] = (acc[key] || 0) + (b.total_price || 0);
-    return acc;
-  }, {} as Record<string, number>);
-  const MONTH_NAMES: Record<string, string> = {
-    '01':'Jan','02':'Feb','03':'Mar','04':'Apr','05':'May','06':'Jun',
-    '07':'Jul','08':'Aug','09':'Sep','10':'Oct','11':'Nov','12':'Dec',
-  };
-  const sortedMonths: { label: string; value: number }[] = Object.entries(monthlyRevenue)
-    .sort((a, b) => b[0].localeCompare(a[0]))
-    .slice(0, 4)
-    .map(([k, v]) => ({ label: `${MONTH_NAMES[k.split('-')[1]]} ${k.split('-')[0]}`, value: Number(v) }));
+  // Player profile completion
+  const pp = playerProfile || {};
+  const playerItems = [
+    { label: 'Account created', done: true },
+    { label: 'Name set', done: !!(pp.name || user?.displayName) },
+    { label: 'Profile details added', done: !!(pp.primary_position || pp.age || pp.grade || pp.goals) },
+    { label: 'Connected with a coach', done: acceptedSent.length > 0 },
+    { label: 'Favorite a coach', done: favorites.length > 0 },
+  ];
+  const completionPct = Math.round((playerItems.filter(i => i.done).length / playerItems.length) * 100);
+  const nextStep = playerItems.find(i => !i.done);
 
   if (loading || roleLoading) return (
-    <div className="min-h-screen pt-20" style={{ background: '#F6F4EF' }}>
-      <div className="relative overflow-hidden" style={{ background: 'rgba(27,24,19,0.05)', borderBottom: '1px solid rgba(27,24,19,0.06)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="skeleton h-4 w-32 rounded-full mb-4" />
-          <div className="skeleton h-14 w-80 rounded-2xl mb-3" />
-          <div className="skeleton h-5 w-64 rounded-xl mb-12" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="rounded-2xl p-6 border border-[rgba(27,24,19,0.10)]" style={{ background: 'rgba(27,24,19,0.03)' }}>
-                <div className="skeleton h-5 w-5 rounded-lg mb-3" />
-                <div className="skeleton h-8 w-16 rounded-xl mb-2" />
-                <div className="skeleton h-3 w-20 rounded-full" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen pt-20 flex items-center justify-center" style={{ background: '#F6F4EF' }}>
+      <Loader2 size={36} className="animate-spin" style={{ color: 'var(--ink-soft)' }} />
+    </div>
+  );
+
+  const statusBadge = (status: string) => {
+    const map: Record<string, { bg: string; fg: string; border: string; label: string }> = {
+      pending:  { bg: 'rgba(27,24,19,0.06)', fg: '#1B1813', border: 'rgba(27,24,19,0.16)', label: 'Pending' },
+      accepted: { bg: 'rgba(94,140,90,0.12)', fg: '#5E8C5A', border: 'rgba(94,140,90,0.25)', label: 'Connected' },
+      ignored:  { bg: 'rgba(27,24,19,0.04)', fg: 'rgba(27,24,19,0.4)', border: 'rgba(27,24,19,0.1)', label: 'Not now' },
+    };
+    const s = map[status] || map.pending;
+    return (
+      <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border"
+        style={{ color: s.fg, background: s.bg, borderColor: s.border }}>
+        {s.label}
+      </span>
+    );
+  };
+
+  const contactRow = (conn: any) => (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+      {conn.player_phone && (
+        <a href={`tel:${conn.player_phone}`} className="inline-flex items-center gap-1.5 text-sm transition-colors hover:text-[var(--ink)]" style={{ color: 'var(--ink-soft)' }}>
+          <Phone size={13} /> {conn.player_phone}
+        </a>
+      )}
+      {conn.player_email && (
+        <a href={`mailto:${conn.player_email}`} className="inline-flex items-center gap-1.5 text-sm transition-colors hover:text-[var(--ink)]" style={{ color: 'var(--ink-soft)' }}>
+          <Mail size={13} /> {conn.player_email}
+        </a>
+      )}
     </div>
   );
 
@@ -696,14 +250,14 @@ export default function DashboardPage() {
                 <h1 className="font-display text-5xl md:text-6xl text-ink mb-3">
                   Welcome back, {user?.displayName?.split(' ')[0] || 'Coach'}
                 </h1>
-                <p style={{ color: 'rgba(27,24,19,0.45)' }} className="text-lg">Here's what's happening with your sessions.</p>
+                <p style={{ color: 'rgba(27,24,19,0.45)' }} className="text-lg">Players who want to train with you are below.</p>
               </motion.div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12" style={{ perspective: '1000px' }}>
                 {[
-                  { label: 'Total Sessions', value: coachBookings.length, icon: <Calendar size={20} />, prefix: '' },
-                  { label: 'Pending', value: pendingCoachSessions.length, icon: <Clock size={20} />, prefix: '' },
-                  { label: 'Total Players', value: uniquePlayers, icon: <Users size={20} />, prefix: '' },
-                  { label: 'Revenue', value: totalRevenue, icon: <DollarSign size={20} />, prefix: '$' },
+                  { label: 'Total Requests', value: incomingConnections.length, icon: <Link2 size={20} />, suffix: '' },
+                  { label: 'Pending', value: pendingIncoming.length, icon: <Clock size={20} />, suffix: '' },
+                  { label: 'Connected Players', value: uniquePlayers, icon: <Users size={20} />, suffix: '' },
+                  { label: 'Profile Views', value: profileViews ?? 0, icon: <Eye size={20} />, suffix: '' },
                 ].map((stat, i) => (
                   <motion.div
                     key={stat.label}
@@ -715,9 +269,7 @@ export default function DashboardPage() {
                     style={{ transformStyle: 'preserve-3d' }}
                   >
                     <div className="mb-3" style={{ color: '#1B1813' }}>{stat.icon}</div>
-                    <p className="text-2xl font-bold text-ink">
-                      {stat.prefix}<AnimatedCounter to={stat.value} />
-                    </p>
+                    <p className="text-2xl font-bold text-ink"><AnimatedCounter to={stat.value} /></p>
                     <p className="text-[10px] font-bold uppercase tracking-widest mt-2" style={{ color: 'rgba(27,24,19,0.2)' }}>{stat.label}</p>
                   </motion.div>
                 ))}
@@ -729,213 +281,99 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
               <div className="lg:col-span-2 space-y-12">
 
-                {pendingCoachSessions.length > 0 && (
-                  <section>
-                    <div className="flex justify-between items-center mb-6">
-                      <h2 className="font-display text-3xl text-ink">Booking Requests</h2>
-                      <span className="tag-badge animate-pulse">{pendingCoachSessions.length} pending</span>
-                    </div>
-                    <div className="space-y-4">
-                      {pendingCoachSessions.map((session, i) => (
-                        <motion.div key={session.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                          className="rounded-2xl p-6" style={{ background: 'rgba(27,24,19,0.06)', border: '1px solid rgba(27,24,19,0.2)' }}>
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                            <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0"
-                              style={{ background: 'rgba(27,24,19,0.15)', border: '1px solid rgba(27,24,19,0.25)', color: '#1B1813' }}>
-                              <span className="text-[10px] font-bold uppercase">{session.date ? new Date(session.date).toLocaleString('default', { month: 'short' }) : '—'}</span>
-                              <span className="text-xl font-bold leading-none">{session.date?.split('-')[2] || '—'}</span>
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-1">
-                                <h4 className="font-bold text-ink text-lg">{session.player_name || 'Player'}</h4>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase" style={{ background: 'rgba(27,24,19,0.06)', color: 'rgba(27,24,19,0.4)' }}>{session.skill_level}</span>
-                              </div>
-                              <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>{session.session_type} · {session.date} at {session.time_slot}</p>
-                              <p className="text-sm font-bold mt-1" style={{ color: '#1B1813' }}>${session.total_price}</p>
-                            </div>
-                            <div className="flex gap-3 shrink-0">
-                              <button onClick={() => updateBookingStatus(session.id, 'confirmed')} disabled={updatingId === session.id}
-                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-                                style={{ background: 'rgba(94,140,90,0.15)', border: '1px solid rgba(94,140,90,0.3)', color: '#5E8C5A' }}>
-                                {updatingId === session.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                                Accept
-                              </button>
-                              <button onClick={() => updateBookingStatus(session.id, 'declined')} disabled={updatingId === session.id}
-                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-                                style={{ background: 'rgba(188,90,72,0.1)', border: '1px solid rgba(188,90,72,0.2)', color: '#BC5A48' }}>
-                                <X size={14} /> Decline
-                              </button>
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {rescheduleRequestsForCoach.length > 0 && (
-                  <section>
-                    <div className="flex justify-between items-center mb-6">
-                      <h2 className="font-display text-3xl text-ink">Reschedule Requests</h2>
-                      <span className="tag-badge" style={{ background: 'rgba(199,154,87,0.15)', color: '#C79A57', borderColor: 'rgba(199,154,87,0.3)' }}>{rescheduleRequestsForCoach.length} pending</span>
-                    </div>
-                    <div className="space-y-4">
-                      {rescheduleRequestsForCoach.map((session, i) => (
-                        <motion.div key={session.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                          className="rounded-2xl p-6" style={{ background: 'rgba(199,154,87,0.06)', border: '1px solid rgba(199,154,87,0.2)' }}>
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
-                                <RefreshCw size={16} style={{ color: '#C79A57' }} />
-                                <h4 className="font-bold text-ink">{session.player_name || 'Player'}</h4>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase" style={{ background: 'rgba(199,154,87,0.1)', color: '#C79A57' }}>reschedule request</span>
-                              </div>
-                              <p className="text-sm mb-1" style={{ color: 'rgba(27,24,19,0.4)' }}>
-                                Original: {session.date} at {session.time_slot}
-                              </p>
-                              <p className="text-sm font-bold" style={{ color: '#C79A57' }}>
-                                Requested: {session.reschedule_date} at {session.reschedule_time}
-                              </p>
-                              {session.reschedule_note && (
-                                <p className="text-xs mt-2 italic" style={{ color: 'rgba(27,24,19,0.35)' }}>"{session.reschedule_note}"</p>
-                              )}
-                            </div>
-                            <div className="flex gap-3 shrink-0">
-                              <button onClick={() => acceptReschedule(session.id, session.reschedule_date, session.reschedule_time)} disabled={updatingId === session.id}
-                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-                                style={{ background: 'rgba(94,140,90,0.15)', border: '1px solid rgba(94,140,90,0.3)', color: '#5E8C5A' }}>
-                                {updatingId === session.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Accept
-                              </button>
-                              <button onClick={() => declineReschedule(session.id)} disabled={updatingId === session.id}
-                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-                                style={{ background: 'rgba(188,90,72,0.1)', border: '1px solid rgba(188,90,72,0.2)', color: '#BC5A48' }}>
-                                <X size={14} /> Decline
-                              </button>
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {coachWaitlist.length > 0 && (
-                  <section>
-                    <div className="flex justify-between items-center mb-6">
-                      <h2 className="font-display text-3xl text-ink">Waitlist</h2>
-                      <span className="tag-badge">{coachWaitlist.length} waiting</span>
-                    </div>
-                    <div className="space-y-3">
-                      {coachWaitlist
-                        .slice()
-                        .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-                        .map((w) => (
-                        <div key={w.id} className="cg-card p-5 flex flex-col sm:flex-row sm:items-center gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-bold text-ink">{w.player_name || 'Player'}</h4>
-                              {w.notified && <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: 'rgba(94,140,90,0.15)', color: 'var(--c-confirmed)' }}>Notified</span>}
-                            </div>
-                            <p className="text-sm" style={{ color: 'var(--ink-soft)' }}>{w.session_type} · {w.date} at {w.time_slot}</p>
-                          </div>
-                          <div className="flex gap-2 shrink-0">
-                            {!w.notified && (
-                              <button onClick={() => notifyWaitlist(w.id)} disabled={updatingId === w.id}
-                                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm transition-colors disabled:opacity-50"
-                                style={{ background: 'var(--black)', color: 'var(--paper)' }}>
-                                {updatingId === w.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Mark notified
-                              </button>
-                            )}
-                            <button onClick={() => leaveWaitlist(w.id)}
-                              className="px-4 py-2 rounded-full text-sm transition-colors hover:bg-[rgba(27,24,19,0.05)]"
-                              style={{ border: '1px solid var(--line-strong)', color: 'var(--ink-soft)' }}>
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
+                {/* Incoming requests */}
                 <section>
                   <div className="flex justify-between items-center mb-6">
-                    <h2 className="font-display text-3xl text-ink">Confirmed Sessions</h2>
-                    <span className="tag-badge">{upcomingCoachSessions.length} confirmed</span>
+                    <h2 className="font-display text-3xl text-ink">Connection requests</h2>
+                    {pendingIncoming.length > 0 && <span className="tag-badge animate-pulse">{pendingIncoming.length} pending</span>}
                   </div>
-                  {upcomingCoachSessions.length > 0 ? (
+                  {pendingIncoming.length > 0 ? (
                     <div className="space-y-4">
-                      {upcomingCoachSessions.map((session, i) => (
-                        <motion.div key={session.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                          className="glass-card rounded-2xl border border-[rgba(27,24,19,0.06)] p-6 flex flex-col sm:flex-row sm:items-center gap-6">
-                          <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0"
-                            style={{ background: 'rgba(27,24,19,0.1)', border: '1px solid rgba(27,24,19,0.2)', color: '#1B1813' }}>
-                            <span className="text-[10px] font-bold uppercase">{session.date ? new Date(session.date).toLocaleString('default', { month: 'short' }) : '—'}</span>
-                            <span className="text-xl font-bold leading-none">{session.date?.split('-')[2] || '—'}</span>
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-1">
-                              <h4 className="font-bold text-ink text-lg">{session.player_name || 'Player'}</h4>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase" style={{ background: 'rgba(27,24,19,0.06)', color: 'rgba(27,24,19,0.4)' }}>{session.skill_level}</span>
+                      {pendingIncoming.map((conn, i) => (
+                        <motion.div key={conn.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                          className="rounded-2xl p-6" style={{ background: 'rgba(27,24,19,0.06)', border: '1px solid rgba(27,24,19,0.2)' }}>
+                          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+                              style={{ background: 'rgba(27,24,19,0.12)', color: '#1B1813' }}>
+                              <UserCircle size={24} />
                             </div>
-                            <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>{session.session_type} · {session.date} at {session.time_slot}</p>
-                          </div>
-                          <div className="flex items-center gap-4 shrink-0">
-                            <p className="font-bold text-xl text-ink">${session.total_price}</p>
-                            <button
-                              onClick={() => {
-                                if (session.date && new Date(session.date + 'T23:59:59') > new Date()) {
-                                  if (!confirm('This session is scheduled for the future. Mark as complete anyway?')) return;
-                                }
-                                updateBookingStatus(session.id, 'completed');
-                              }}
-                              disabled={updatingId === session.id}
-                              className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-colors disabled:opacity-50 hover:bg-[rgba(27,24,19,0.1)]"
-                              style={{ background: 'rgba(27,24,19,0.06)', border: '1px solid rgba(27,24,19,0.16)', color: 'var(--ink-soft)' }}>
-                              Mark Complete
-                            </button>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-bold text-ink text-lg">{conn.player_name || 'Player'}</h4>
+                              {conn.player_note && (
+                                <p className="text-sm mt-1 italic" style={{ color: 'rgba(27,24,19,0.55)' }}>“{conn.player_note}”</p>
+                              )}
+                              {contactRow(conn)}
+                              <Link to={`/players/${conn.player_id}`} className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest mt-3 transition-colors hover:text-[var(--ink)]" style={{ color: 'rgba(27,24,19,0.45)' }}>
+                                View their profile <ChevronRight size={13} />
+                              </Link>
+                            </div>
+                            <div className="flex gap-3 shrink-0">
+                              <button onClick={() => respondToConnection(conn, 'accepted')} disabled={updatingId === conn.id}
+                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+                                style={{ background: 'rgba(94,140,90,0.15)', border: '1px solid rgba(94,140,90,0.3)', color: '#5E8C5A' }}>
+                                {updatingId === conn.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Accept
+                              </button>
+                              <button onClick={() => respondToConnection(conn, 'ignored')} disabled={updatingId === conn.id}
+                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+                                style={{ background: 'rgba(188,90,72,0.1)', border: '1px solid rgba(188,90,72,0.2)', color: '#BC5A48' }}>
+                                <X size={14} /> Ignore
+                              </button>
+                            </div>
                           </div>
                         </motion.div>
                       ))}
                     </div>
                   ) : (
                     <div className="glass-card rounded-3xl border border-dashed border-[rgba(27,24,19,0.10)] p-16 text-center">
-                      <Calendar size={40} className="mx-auto mb-4" style={{ color: 'rgba(27,24,19,0.1)' }} />
-                      <p className="font-bold mb-2 text-ink">No confirmed sessions</p>
-                      <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>Accepted bookings will appear here.</p>
+                      <Link2 size={40} className="mx-auto mb-4" style={{ color: 'rgba(27,24,19,0.1)' }} />
+                      <p className="font-bold mb-2 text-ink">No pending requests</p>
+                      <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>When a player asks to connect, they'll show up here with their contact info.</p>
                     </div>
                   )}
                 </section>
 
-                {completedCoachSessions.length > 0 && (
-                  <section>
-                    <h2 className="font-display text-3xl text-ink mb-6">Session History</h2>
-                    <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] overflow-hidden">
-                      <table className="w-full text-left">
-                        <thead className="bg-[rgba(27,24,19,0.04)] text-[10px] uppercase tracking-widest font-bold" style={{ color: 'rgba(27,24,19,0.3)' }}>
-                          <tr>
-                            <th className="px-6 py-4">Player</th>
-                            <th className="px-6 py-4">Session</th>
-                            <th className="px-6 py-4">Date</th>
-                            <th className="px-6 py-4">Revenue</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[rgba(27,24,19,0.06)] text-sm">
-                          {completedCoachSessions.map(row => (
-                            <tr key={row.id} className="hover:bg-[rgba(27,24,19,0.04)] transition-colors">
-                              <td className="px-6 py-4 font-medium text-ink">{row.player_name || '—'}</td>
-                              <td className="px-6 py-4" style={{ color: 'rgba(27,24,19,0.4)' }}>{row.session_type}</td>
-                              <td className="px-6 py-4" style={{ color: 'rgba(27,24,19,0.4)' }}>{row.date}</td>
-                              <td className="px-6 py-4 font-bold" style={{ color: '#1B1813' }}>${row.total_price}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                {/* Accepted connections */}
+                <section>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="font-display text-3xl text-ink">Your players</h2>
+                    <span className="tag-badge">{acceptedIncoming.length} connected</span>
+                  </div>
+                  {acceptedIncoming.length > 0 ? (
+                    <div className="space-y-4">
+                      {acceptedIncoming.map((conn, i) => (
+                        <motion.div key={conn.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                          className="glass-card rounded-2xl border border-[rgba(27,24,19,0.06)] p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'rgba(27,24,19,0.06)', color: '#1B1813' }}>
+                            <UserCircle size={24} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-ink">{conn.player_name || 'Player'}</h4>
+                            {contactRow(conn)}
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            <Link to={`/players/${conn.player_id}`} className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm transition-colors hover:bg-[rgba(27,24,19,0.05)]"
+                              style={{ border: '1px solid var(--line-strong)', color: 'var(--ink-soft)' }}>
+                              <UserCircle size={14} /> Profile
+                            </Link>
+                            <button onClick={() => openConversation(user!.uid, conn.player_id, conn.coach_name || (user?.displayName || 'Coach'), conn.player_name || 'Player')}
+                              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm transition-colors"
+                              style={{ background: 'var(--black)', color: 'var(--paper)' }}>
+                              <MessageSquare size={14} /> Message
+                            </button>
+                          </div>
+                        </motion.div>
+                      ))}
                     </div>
-                  </section>
-                )}
+                  ) : (
+                    <div className="glass-card rounded-3xl border border-dashed border-[rgba(27,24,19,0.10)] p-12 text-center">
+                      <Users size={36} className="mx-auto mb-4" style={{ color: 'rgba(27,24,19,0.1)' }} />
+                      <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>Players you accept will appear here, and messaging opens up.</p>
+                    </div>
+                  )}
+                </section>
               </div>
 
+              {/* Sidebar */}
               <div className="space-y-6">
                 <div className="rounded-3xl p-8 shadow-2xl" style={{ background: 'var(--paper-warm)', boxShadow: '0 20px 60px rgba(27,24,19,0.3)' }}>
                   <div className="w-16 h-16 bg-[rgba(27,24,19,0.06)] rounded-2xl overflow-hidden flex items-center justify-center mb-6">
@@ -951,9 +389,6 @@ export default function DashboardPage() {
                     <Link to="/coach-edit-profile" className="flex items-center gap-2 bg-[rgba(27,24,19,0.05)] hover:bg-[rgba(27,24,19,0.06)] transition-all rounded-xl px-4 py-3 text-sm font-bold text-ink border border-[rgba(27,24,19,0.10)]">
                       <Edit size={16} /> Edit Profile
                     </Link>
-                    <Link to="/coach-availability" className="flex items-center gap-2 bg-[rgba(27,24,19,0.05)] hover:bg-[rgba(27,24,19,0.06)] transition-all rounded-xl px-4 py-3 text-sm font-bold text-ink border border-[rgba(27,24,19,0.10)]">
-                      <CalendarDays size={16} /> Set Availability
-                    </Link>
                     <Link to="/messages" className="flex items-center gap-2 bg-[rgba(27,24,19,0.05)] hover:bg-[rgba(27,24,19,0.06)] transition-all rounded-xl px-4 py-3 text-sm font-bold text-ink border border-[rgba(27,24,19,0.10)]">
                       <MessageSquare size={16} /> Messages
                     </Link>
@@ -962,7 +397,7 @@ export default function DashboardPage() {
 
                 <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
                   <h3 className="font-display text-xl text-ink mb-2 flex items-center gap-3">
-                    <Zap size={20} style={{ color: '#1B1813' }} /> PROFILE STRENGTH
+                    <Zap size={20} style={{ color: '#1B1813' }} /> Profile strength
                   </h3>
                   <div className="flex items-baseline gap-2 mb-3">
                     <span className="font-display text-4xl" style={{ color: 'var(--ink)' }}>{profileStrength}%</span>
@@ -975,24 +410,10 @@ export default function DashboardPage() {
                   {topNudge ? (
                     <>
                       <div className="p-4 rounded-2xl mb-4" style={{ background: 'var(--paper-warm)', border: '1px solid var(--line)' }}>
-                        <p className="text-sm" style={{ color: 'var(--ink)' }}>
-                          <strong>Next:</strong> add your {topNudge.label.toLowerCase()}.
-                        </p>
+                        <p className="text-sm" style={{ color: 'var(--ink)' }}><strong>Next:</strong> add your {topNudge.label.toLowerCase()}.</p>
                         <p className="text-xs mt-1" style={{ color: 'var(--ink-soft)' }}>{topNudge.nudge}</p>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {completenessItems.filter(i => !i.done).map(i => (
-                          <span key={i.label} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: 'var(--card-cream)', border: '1px solid var(--line-strong)', color: 'var(--ink-soft)' }}>
-                            {i.label}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-2 mt-5">
-                        <Link to="/coach-edit-profile" className="btn-primary py-2 px-4 text-sm flex-1 justify-center">Complete profile</Link>
-                        {!completenessItems.find(i => i.label === 'Availability')?.done && (
-                          <Link to="/coach-availability" className="btn-secondary py-2 px-4 text-sm">Availability</Link>
-                        )}
-                      </div>
+                      <Link to="/coach-edit-profile" className="btn-primary py-2 px-4 text-sm w-full justify-center">Complete profile</Link>
                     </>
                   ) : (
                     <div className="flex items-center gap-2 p-4 rounded-2xl" style={{ background: 'rgba(94,140,90,0.08)', border: '1px solid rgba(94,140,90,0.2)' }}>
@@ -1004,14 +425,14 @@ export default function DashboardPage() {
 
                 <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
                   <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3">
-                    <TrendingUp size={20} style={{ color: '#1B1813' }} /> ANALYTICS
+                    <TrendingUp size={20} style={{ color: '#1B1813' }} /> Analytics
                   </h3>
-                  <div className="grid grid-cols-2 gap-3 mb-5">
+                  <div className="grid grid-cols-2 gap-3">
                     {[
                       { label: 'Profile views', value: profileViews == null ? '—' : String(profileViews) },
-                      { label: 'View → booking', value: conversionRate == null ? '—' : `${conversionRate}%` },
-                      { label: 'Repeat clients', value: `${repeatRate}%` },
-                      { label: 'Total bookings', value: String(totalBookingsCount) },
+                      { label: 'Requests', value: String(incomingConnections.length) },
+                      { label: 'Accepted', value: String(acceptedIncoming.length) },
+                      { label: 'Accept rate', value: `${acceptRate}%` },
                     ].map(s => (
                       <div key={s.label} className="rounded-2xl p-4" style={{ background: 'var(--paper-warm)', border: '1px solid var(--line)' }}>
                         <p className="font-display text-3xl leading-none" style={{ color: 'var(--ink)' }}>{s.value}</p>
@@ -1019,11 +440,6 @@ export default function DashboardPage() {
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs" style={{ color: 'var(--ink-faint)' }}>
-                    {profileViews && profileViews > 0
-                      ? `${totalBookingsCount} of ${profileViews} profile views turned into bookings.`
-                      : 'Views are counted as players open your profile.'}
-                  </p>
                 </div>
 
                 <MarketingToolkit
@@ -1033,60 +449,10 @@ export default function DashboardPage() {
 
                 <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
                   <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3">
-                    <BarChart2 size={20} style={{ color: '#1B1813' }} /> REVENUE
-                  </h3>
-                  <div className="space-y-4 mb-6">
-                    {[
-                      { label: 'Total Earned', value: `$${totalRevenue}` },
-                      { label: 'Completed Sessions', value: completedCoachSessions.length },
-                      { label: 'Avg Per Session', value: `$${completedCoachSessions.length > 0 ? Math.round(totalRevenue / completedCoachSessions.length) : 0}` },
-                      { label: 'Unique Players', value: uniquePlayers },
-                    ].map(item => (
-                      <div key={item.label} className="flex justify-between items-center">
-                        <span className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>{item.label}</span>
-                        <span className="font-bold text-ink">{item.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {sortedMonths.length > 0 && (
-                    <>
-                      <div className="border-t border-[rgba(27,24,19,0.08)] pt-6">
-                        <p className="text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color: 'rgba(27,24,19,0.25)' }}>Monthly Breakdown</p>
-                        <div className="space-y-3">
-                          {sortedMonths.map(({ label, value }) => {
-                            const maxVal = sortedMonths[0].value || 1;
-                            const pct = Math.round((value / maxVal) * 100);
-                            return (
-                              <div key={label}>
-                                <div className="flex justify-between items-center mb-1.5">
-                                  <span className="text-xs font-bold" style={{ color: 'rgba(27,24,19,0.5)' }}>{label}</span>
-                                  <span className="text-xs font-bold" style={{ color: '#1B1813' }}>${value}</span>
-                                </div>
-                                <div className="w-full h-1.5 rounded-full" style={{ background: 'rgba(27,24,19,0.06)' }}>
-                                  <motion.div
-                                    className="h-full rounded-full"
-                                    initial={{ width: 0 }}
-                                    whileInView={{ width: `${pct}%` }}
-                                    viewport={{ once: true }}
-                                    transition={{ ...SPRING, delay: 0.2 }}
-                                    style={{ background: '#16130E' }}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
-                  <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3">
-                    <Trophy size={20} style={{ color: '#C79A57' }} /> TIPS
+                    <Trophy size={20} style={{ color: '#C79A57' }} /> Tips
                   </h3>
                   <ul className="space-y-4 text-sm">
-                    {['Keep your availability up to date', 'Accept bookings within 24 hours', 'Add certifications to your profile'].map((tip, i) => (
+                    {['Respond to connection requests within 24 hours', 'Reach out by phone or email to plan training', 'Add an intro video to stand out'].map((tip, i) => (
                       <li key={i} className="flex items-start gap-3">
                         <CheckCircle2 size={16} className="mt-0.5 shrink-0" style={{ color: 'rgba(27,24,19,0.4)' }} />
                         <span style={{ color: 'rgba(27,24,19,0.45)' }}>{tip}</span>
@@ -1111,15 +477,15 @@ export default function DashboardPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-4" style={{ color: 'rgba(27,24,19,0.3)' }}>Player Dashboard</p>
-              <h1 className="font-display text-5xl md:text-6xl text-ink mb-3">Welcome back, {user?.displayName?.split(' ')[0] || 'Player'}</h1>
-              <p style={{ color: 'rgba(27,24,19,0.45)' }} className="text-lg">Your development journey is in full swing.</p>
+              <h1 className="font-display text-5xl md:text-6xl text-ink mb-3">Welcome back, {user?.displayName?.split(' ')[0] || playerName.split(' ')[0] || 'Player'}</h1>
+              <p style={{ color: 'rgba(27,24,19,0.45)' }} className="text-lg">Track your coaches and connection requests.</p>
             </motion.div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12" style={{ perspective: '1000px' }}>
               {[
-                { label: 'Sessions Booked', value: bookings.length, icon: <Calendar size={20} /> },
-                { label: 'Upcoming', value: upcomingSessions.length, icon: <Clock size={20} /> },
-                { label: 'Completed', value: pastSessions.length, icon: <CheckCircle2 size={20} /> },
-                { label: 'Fav Coaches', value: favorites.length, icon: <Heart size={20} /> },
+                { label: 'Requests Sent', value: sentConnections.length, icon: <Link2 size={20} /> },
+                { label: 'Pending', value: pendingSent.length, icon: <Clock size={20} /> },
+                { label: 'Connected', value: acceptedSent.length, icon: <CheckCircle2 size={20} /> },
+                { label: 'Saved Coaches', value: favorites.length, icon: <Heart size={20} /> },
               ].map((stat, i) => (
                 <motion.div
                   key={stat.label}
@@ -1142,30 +508,20 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
             <div className="lg:col-span-2 space-y-12">
+
+              {/* Profile completion */}
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
                 <div className="flex flex-col sm:flex-row gap-8 items-center sm:items-start">
-                  {/* SVG ring — animates from 0 to completionPct */}
                   <div className="relative w-36 h-36 shrink-0">
                     <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
-                      <defs>
-                        <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%"  stopColor="#1B1813" />
-                          <stop offset="55%" stopColor="#8A7BA8" />
-                          <stop offset="100%" stopColor="#7C95AD" />
-                        </linearGradient>
-                      </defs>
                       <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(27,24,19,0.06)" strokeWidth="9" />
                       <motion.circle
                         cx="60" cy="60" r="52" fill="none"
-                        stroke="url(#ringGradient)"
-                        strokeWidth="9"
-                        strokeLinecap="round"
-                        pathLength={1}
-                        strokeDasharray={1}
+                        stroke="#1B1813" strokeWidth="9" strokeLinecap="round"
+                        pathLength={1} strokeDasharray={1}
                         initial={{ strokeDashoffset: 1 }}
                         animate={{ strokeDashoffset: 1 - (completionPct / 100) }}
                         transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
-                        style={{ filter: 'drop-shadow(0 0 8px rgba(27,24,19,0.45))' }}
                       />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -1174,242 +530,86 @@ export default function DashboardPage() {
                       </span>
                       <span className="text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color: 'rgba(27,24,19,0.35)' }}>Complete</span>
                     </div>
-                    {/* pulsing aura behind ring */}
-                    <motion.div
-                      aria-hidden
-                      className="absolute inset-0 rounded-full pointer-events-none"
-                      style={{ background: 'radial-gradient(circle, rgba(27,24,19,0.25) 0%, transparent 60%)' }}
-                      animate={{ opacity: [0.4, 0.9, 0.4], scale: [0.92, 1.05, 0.92] }}
-                      transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut' }}
-                    />
                   </div>
-
                   <div className="flex-1 w-full">
-                    <h3 className="font-display text-2xl text-ink mb-1">Profile Completion</h3>
+                    <h3 className="font-display text-2xl text-ink mb-1">Your profile</h3>
                     <p className="text-sm mb-6" style={{ color: 'rgba(27,24,19,0.4)' }}>
                       {nextStep ? `Next: ${nextStep.label}` : 'Profile complete!'}
                     </p>
-                    <motion.div
-                      variants={{ visible: { transition: { staggerChildren: 0.05, delayChildren: 0.4 } } }}
-                      initial="hidden"
-                      animate="visible"
-                      className="grid grid-cols-1 sm:grid-cols-2 gap-3"
-                    >
-                      {completionItems.map((item) => (
-                        <motion.div
-                          key={item.label}
-                          variants={{
-                            hidden: { opacity: 0, x: -10 },
-                            visible: { opacity: 1, x: 0, transition: { ...SPRING } },
-                          }}
-                          className="flex items-center gap-3 text-sm"
-                        >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {playerItems.map((item) => (
+                        <div key={item.label} className="flex items-center gap-3 text-sm">
                           <CheckCircle2 size={16} style={{ color: item.done ? '#1B1813' : 'rgba(27,24,19,0.1)' }} fill={item.done ? '#1B1813' : 'none'} />
                           <span style={{ color: item.done ? 'var(--ink)' : 'rgba(27,24,19,0.4)' }} className={item.done ? 'font-medium' : ''}>{item.label}</span>
-                        </motion.div>
+                        </div>
                       ))}
-                    </motion.div>
+                    </div>
+                    <Link to="/profile" className="btn-secondary py-2 px-5 text-sm mt-6 inline-flex"><Edit size={14} /> Edit my profile</Link>
                   </div>
                 </div>
               </motion.div>
 
+              {/* Sent connection requests */}
               <section>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="font-display text-3xl text-ink">Upcoming Sessions</h2>
-                  <Link to="/coaches" className="btn-primary py-2 px-6 text-xs flex items-center gap-2"><Plus size={14} /> Book New</Link>
+                  <h2 className="font-display text-3xl text-ink">Your connections</h2>
+                  <Link to="/coaches" className="btn-primary py-2 px-6 text-xs flex items-center gap-2"><Link2 size={14} /> Find a coach</Link>
                 </div>
-                {upcomingSessions.length > 0 ? (
+                {sentConnections.length > 0 ? (
                   <div className="space-y-4">
-                    {upcomingSessions.map((session, i) => {
-                      const coachAvatar = getCoachAvatar(session.coach_id);
-                      const isToday = session.date === today;
+                    {sentConnections.map((conn, i) => {
+                      const mock = getMockCoach(conn);
                       return (
-                        <div key={session.id} className="relative rounded-2xl">
-                          <GlowingEffect disabled={false} spread={40} borderWidth={1} proximity={64} />
-                          <motion.div
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ ...SPRING, delay: i * 0.05 }}
-                            className="glass-card rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center gap-6 transition-all relative"
-                            style={{
-                              border: isToday ? '1px solid rgba(199,154,87,0.5)' : '1px solid rgba(27,24,19,0.05)',
-                              boxShadow: isToday ? '0 0 28px rgba(199,154,87,0.25), inset 0 0 30px rgba(199,154,87,0.06)' : 'none',
-                              background: isToday ? 'linear-gradient(135deg, rgba(199,154,87,0.08), rgba(27,24,19,0.03))' : undefined,
-                            }}
-                          >
-                            {isToday && (
-                              <motion.span
-                                aria-label="Today"
-                                className="absolute -top-2 -right-2 flex items-center gap-1 px-2.5 py-1 rounded-full z-10"
-                                style={{
-                                  background: 'var(--clay)',
-                                  border: '1px solid rgba(199,154,87,0.6)',
-                                  boxShadow: '0 4px 16px rgba(199,154,87,0.45)',
-                                }}
-                                animate={{ scale: [1, 1.06, 1] }}
-                                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--ink)' }} />
-                                <span className="text-[9px] font-extrabold uppercase tracking-widest text-ink">Today</span>
-                              </motion.span>
-                            )}
+                        <motion.div key={conn.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ ...SPRING, delay: i * 0.05 }}
+                          className="glass-card rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center gap-5 border border-[rgba(27,24,19,0.06)]">
                           <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 border border-[rgba(27,24,19,0.10)]" style={{ background: 'rgba(27,24,19,0.05)' }}>
-                            {coachAvatar ? <img src={coachAvatar} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : (
-                              <div className="w-full h-full flex items-center justify-center font-bold" style={{ color: '#1B1813' }}>{getCoachName(session.coach_id).charAt(0)}</div>
-                            )}
+                            {mock?.avatar_url
+                              ? <img src={mock.avatar_url} alt="" className="w-full h-full object-cover" style={{ objectPosition: mock.avatar_position || 'center' }} referrerPolicy="no-referrer" />
+                              : <div className="w-full h-full flex items-center justify-center font-bold" style={{ color: '#1B1813' }}>{(conn.coach_name || 'C').charAt(0)}</div>}
                           </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <h4 className="font-bold text-ink text-lg">{session.session_type}</h4>
-                              {session.location_mode && (
-                                <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: 'var(--paper-warm)', color: 'var(--ink-soft)', border: '1px solid var(--line)' }}>
-                                  {LOCATION_MODE_META[session.location_mode as LocationMode]?.short || session.location_mode}
-                                </span>
-                              )}
-                              {session.is_recurring && (
-                                <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={{ background: 'var(--paper-warm)', color: 'var(--ink-soft)', border: '1px solid var(--line)' }}>
-                                  <RefreshCw size={9} /> Weekly
-                                </span>
-                              )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <h4 className="font-bold text-ink text-lg">{conn.coach_name || 'Coach'}</h4>
+                              {statusBadge(conn.status)}
                             </div>
-                            <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>with {getCoachName(session.coach_id)} · <span className="capitalize">{getCoachSpecialty(session.coach_id)}</span></p>
-                            <p className="text-xs font-bold mt-1" style={{ color: '#1B1813' }}>{session.date} at {session.time_slot}</p>
+                            {mock && <p className="text-sm capitalize" style={{ color: 'rgba(27,24,19,0.4)' }}>{mock.specialty}</p>}
+                            {conn.status === 'pending' && <p className="text-xs mt-1" style={{ color: 'var(--ink-faint)' }}>Waiting for {conn.coach_name?.split(' ')[0] || 'the coach'} to reach out.</p>}
+                            {conn.status === 'ignored' && <p className="text-xs mt-1" style={{ color: 'var(--ink-faint)' }}>This coach isn't taking new players right now.</p>}
                           </div>
-                          <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
-                            {session.status === 'confirmed' && (() => {
-                              const mockCoach = MOCK_COACHES.find(c => c.user_id === session.coach_id);
-                              const venmoHandle = mockCoach?.venmo_handle || session.coach_venmo_handle;
-                              return venmoHandle ? (
-                                <a
-                                  href={buildVenmoUrl(venmoHandle, session.total_price)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all hover:opacity-90"
-                                  style={{ background: '#008DF5', color: 'white', boxShadow: '0 2px 12px rgba(0,141,245,0.35)' }}
-                                  onClick={e => e.stopPropagation()}
-                                >
-                                  <span className="text-xs font-extrabold">V</span> Pay ${session.total_price}
-                                </a>
-                              ) : null;
-                            })()}
-                            <a href={generateCalendarLink(session, getCoachName(session.coach_id))} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-colors rounded-xl px-4 py-2 hover:bg-[rgba(27,24,19,0.04)]"
-                              style={{ color: 'rgba(27,24,19,0.4)', border: '1px solid rgba(27,24,19,0.08)' }}>
-                              <ExternalLink size={12} /> Calendar
-                            </a>
-                            <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border"
-                              style={{
-                                color: session.status === 'confirmed' ? '#5E8C5A' : session.status === 'reschedule_requested' ? '#C79A57' : '#1B1813',
-                                background: session.status === 'confirmed' ? 'rgba(94,140,90,0.1)' : session.status === 'reschedule_requested' ? 'rgba(199,154,87,0.1)' : 'rgba(27,24,19,0.1)',
-                                borderColor: session.status === 'confirmed' ? 'rgba(94,140,90,0.2)' : session.status === 'reschedule_requested' ? 'rgba(199,154,87,0.2)' : 'rgba(27,24,19,0.2)',
-                              }}>
-                              {session.status === 'reschedule_requested' ? 'Reschedule Req.' : session.status}
-                            </span>
-                            {session.status === 'confirmed' && (
-                              <button
-                                onClick={() => setRescheduleSession(session)}
-                                className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all hover:bg-[rgba(27,24,19,0.04)]"
-                                style={{ color: 'rgba(27,24,19,0.4)', border: '1px solid rgba(27,24,19,0.08)' }}>
-                                <RefreshCw size={11} /> Reschedule
-                              </button>
+                          <div className="flex gap-2 shrink-0">
+                            {mock && (
+                              <Link to={`/coaches/${conn.coach_id}`} className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm transition-colors hover:bg-[rgba(27,24,19,0.05)]"
+                                style={{ border: '1px solid var(--line-strong)', color: 'var(--ink-soft)' }}>
+                                View
+                              </Link>
                             )}
-                            {session.status === 'pending' && (
-                              <button
-                                onClick={() => cancelBooking(session.id)}
-                                disabled={updatingId === session.id}
-                                className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border transition-all hover:bg-[rgba(188,90,72,0.1)] disabled:opacity-40"
-                                style={{ color: 'rgba(188,90,72,0.7)', borderColor: 'rgba(188,90,72,0.2)' }}
-                              >
-                                {updatingId === session.id ? '...' : 'Cancel'}
+                            {conn.status === 'accepted' && (
+                              <button onClick={() => openConversation(conn.coach_user_id, user!.uid, conn.coach_name || 'Coach', playerName)}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm transition-colors"
+                                style={{ background: 'var(--black)', color: 'var(--paper)' }}>
+                                <MessageSquare size={14} /> Message
                               </button>
                             )}
                           </div>
                         </motion.div>
-                        </div>
                       );
                     })}
                   </div>
                 ) : (
                   <div className="glass-card rounded-3xl border border-dashed border-[rgba(27,24,19,0.10)] p-16 text-center">
-                    <Calendar size={40} className="mx-auto mb-4" style={{ color: 'rgba(27,24,19,0.1)' }} />
-                    <p className="font-bold mb-2 text-ink">No upcoming sessions</p>
-                    <p className="text-sm mb-8" style={{ color: 'rgba(27,24,19,0.4)' }}>Book your first session with an elite specialist.</p>
+                    <Link2 size={40} className="mx-auto mb-4" style={{ color: 'rgba(27,24,19,0.1)' }} />
+                    <p className="font-bold mb-2 text-ink">No connections yet</p>
+                    <p className="text-sm mb-8" style={{ color: 'rgba(27,24,19,0.4)' }}>Find a specialist and click Connect — they'll reach out to plan your training.</p>
                     <Link to="/coaches" className="btn-primary py-2 px-8 text-sm">Browse Coaches</Link>
                   </div>
                 )}
               </section>
-
-              {/* Session History with Leave Review */}
-              {pastSessions.length > 0 && (
-                <section>
-                  <h2 className="font-display text-3xl text-ink mb-6">Session History</h2>
-                  <div className="space-y-4">
-                    {pastSessions.map((row, i) => {
-                      const alreadyReviewed = reviewedBookingIds.has(row.id);
-                      return (
-                        <div key={row.id} className="relative rounded-2xl">
-                          <GlowingEffect disabled={false} spread={30} borderWidth={1} proximity={50} />
-                          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                          className="glass-card rounded-2xl border border-[rgba(27,24,19,0.06)] p-6 flex flex-col sm:flex-row sm:items-center gap-4">
-                          <div className="flex-1">
-                            <h4 className="font-bold text-ink mb-1">{getCoachName(row.coach_id)}</h4>
-                            <p className="text-sm" style={{ color: 'rgba(27,24,19,0.4)' }}>{row.session_type} · {row.date}</p>
-                          </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase border"
-                              style={{ color: '#5E8C5A', background: 'rgba(94,140,90,0.1)', borderColor: 'rgba(94,140,90,0.2)' }}>
-                              {row.status}
-                            </span>
-                            {alreadyReviewed ? (
-                              <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl"
-                                style={{ color: '#C79A57', background: 'rgba(199,154,87,0.08)', border: '1px solid rgba(199,154,87,0.15)' }}>
-                                <Star size={11} fill="#C79A57" /> Reviewed
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => setReviewSession(row)}
-                                className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all hover:bg-[rgba(27,24,19,0.05)]"
-                                style={{ color: 'rgba(27,24,19,0.5)', border: '1px solid rgba(27,24,19,0.1)' }}>
-                                <Star size={11} /> Leave Review
-                              </button>
-                            )}
-                          </div>
-                        </motion.div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
             </div>
 
+            {/* Sidebar */}
             <div className="space-y-6">
-              {myWaitlist.length > 0 && (
-                <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
-                  <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3"><Clock size={20} style={{ color: '#1B1813' }} />ON THE WAITLIST</h3>
-                  <div className="space-y-4">
-                    {myWaitlist.map((w) => (
-                      <div key={w.id} className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-ink truncate">{w.coach_name || 'Coach'}</p>
-                          <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-soft)' }}>
-                            {w.session_type} · {w.date} at {w.time_slot}
-                            {w.notified && <span style={{ color: 'var(--c-confirmed)' }}> · spot may be open!</span>}
-                          </p>
-                        </div>
-                        <button onClick={() => leaveWaitlist(w.id)}
-                          className="text-[10px] font-bold uppercase tracking-widest shrink-0 transition-colors hover:text-[var(--ink)]"
-                          style={{ color: 'var(--ink-faint)' }}>
-                          Leave
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
-                <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3"><Star size={20} fill="#C79A57" style={{ color: '#C79A57' }} />SAVED COACHES</h3>
+                <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3"><Star size={20} fill="#C79A57" style={{ color: '#C79A57' }} />Saved coaches</h3>
                 {favorites.length > 0 ? (
                   <div className="space-y-5">
                     {favorites.map(fav => (
@@ -1443,13 +643,13 @@ export default function DashboardPage() {
                   <MessageSquare size={20} style={{ color: '#1B1813' }} />
                   <div>
                     <p className="font-bold text-ink text-sm">Messages</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'rgba(27,24,19,0.35)' }}>Chat with your coaches</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'rgba(27,24,19,0.35)' }}>Opens once a coach accepts you</p>
                   </div>
                 </Link>
               </div>
 
               <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
-                <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3"><Target size={20} style={{ color: '#1B1813' }} />BY SPECIALTY</h3>
+                <h3 className="font-display text-xl text-ink mb-6 flex items-center gap-3"><Target size={20} style={{ color: '#1B1813' }} />By specialty</h3>
                 <div className="space-y-2">
                   {['hitting', 'pitching', 'fielding', 'strength'].map(spec => (
                     <Link key={spec} to={`/coaches?specialty=${spec}`} className="flex items-center justify-between p-4 rounded-2xl hover:bg-[rgba(27,24,19,0.04)] transition-all group border border-transparent hover:border-[rgba(27,24,19,0.06)]">
@@ -1463,7 +663,7 @@ export default function DashboardPage() {
               <div className="rounded-3xl p-8 shadow-2xl" style={{ background: 'var(--paper-warm)', boxShadow: '0 20px 60px rgba(27,24,19,0.25)' }}>
                 <TrendingUp size={32} className="mb-6 text-ink-faint" />
                 <h3 className="font-display text-2xl text-ink mb-3">Ready to level up?</h3>
-                <p className="text-ink-soft text-sm mb-8 leading-relaxed">Book a session with an elite specialist today.</p>
+                <p className="text-ink-soft text-sm mb-8 leading-relaxed">Find an elite specialist and connect — they take it from there.</p>
                 <Link to="/coaches" className="bg-white font-bold py-4 px-6 rounded-2xl text-sm flex items-center justify-center gap-2 hover:bg-white/90 transition-all uppercase tracking-widest" style={{ color: '#1B1813' }}>
                   Browse Marketplace <ChevronRight size={18} />
                 </Link>
@@ -1472,30 +672,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-
-      {/* Review Modal */}
-      {reviewSession && (
-        <ReviewModal
-          session={reviewSession}
-          coachName={getCoachName(reviewSession.coach_id)}
-          onClose={() => setReviewSession(null)}
-          onSubmit={submitReview}
-        />
-      )}
-
-      {/* Reschedule Modal */}
-      {rescheduleSession && (
-        <RescheduleModal
-          session={rescheduleSession}
-          coachName={getCoachName(rescheduleSession.coach_id)}
-          onClose={() => { setRescheduleSession(null); setRescheduleDate(''); setRescheduleTime(''); setRescheduleNote(''); }}
-          onSubmit={requestReschedule}
-          date={rescheduleDate} setDate={setRescheduleDate}
-          time={rescheduleTime} setTime={setRescheduleTime}
-          note={rescheduleNote} setNote={setRescheduleNote}
-          submitting={rescheduling}
-        />
-      )}
     </PageTransition>
   );
 }

@@ -127,8 +127,7 @@ export default function ContactPage() {
                       onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                     >
                       <option value="General Inquiry">General Inquiry</option>
-                      <option value="Booking Issue">Booking Issue</option>
-                      <option value="Payment Issue">Payment Issue</option>
+                      <option value="Connecting Help">Connecting Help</option>
                       <option value="Coach Question">Coach Question</option>
                       <option value="Become a Coach">Become a Coach</option>
                       <option value="Other">Other</option>

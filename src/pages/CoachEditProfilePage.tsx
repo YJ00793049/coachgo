@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Loader2, Target, DollarSign, MapPin, User, Award, ArrowLeft, Save, CheckCircle2, Camera, X, CreditCard, Video, Upload, Plus, Search } from 'lucide-react';
+import { Loader2, Target, DollarSign, MapPin, User, Award, ArrowLeft, Save, CheckCircle2, Camera, X, Video, Upload, Plus, Search } from 'lucide-react';
 import { auth, db, storage } from '../firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import PageTransition from '../components/PageTransition';
-import { getBrowserTimezone, tzAbbrev } from '../utils/scheduling';
-import type { PromoCode } from '../types';
+import { ALL_OFFERINGS, OFFERING_LABEL } from '../utils/offerings';
+import type { SessionOffering } from '../types';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 
 const SPECIALTIES = ['hitting', 'pitching', 'fielding', 'strength'];
@@ -67,7 +67,6 @@ export default function CoachEditProfilePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
-  const [venmoError, setVenmoError] = useState('');
   const [certInput, setCertInput] = useState('');
   const [affiliationSearch, setAffiliationSearch] = useState('');
   const [showAffiliationDropdown, setShowAffiliationDropdown] = useState(false);
@@ -91,18 +90,22 @@ export default function CoachEditProfilePage() {
 
   const [profile, setProfile] = useState({
     specialty: '', secondarySpecialty: '', bio: '', yearsExperience: '',
-    sessionTypes: [{ label: '1-on-1 Private', price: '' }] as { label: string; price: string }[],
+    offerings: ['1-on-1'] as SessionOffering[],
+    startingPrice: '',
     city: '', state: '', streetAddress: '',
     skills: [] as string[], certifications: [] as string[],
-    photoUrl: '', venmoHandle: '',
+    photoUrl: '',
     affiliations: [] as { name: string; logoUrl: string | null }[],
-    instantBook: false,
     locationModes: { facility: true, travel: false, virtual: false },
-    bufferMinutes: 0,
     academyName: '',
-    promoCodes: [] as PromoCode[],
   });
-  const [newPromo, setNewPromo] = useState<{ code: string; type: 'percent' | 'amount'; value: string }>({ code: '', type: 'percent', value: '' });
+
+  const toggleOffering = (o: SessionOffering) => setProfile(p => ({
+    ...p,
+    offerings: p.offerings.includes(o)
+      ? (p.offerings.length > 1 ? p.offerings.filter(x => x !== o) : p.offerings)
+      : [...p.offerings, o],
+  }));
 
   useEffect(() => {
     if (!user) return;
@@ -111,36 +114,29 @@ export default function CoachEditProfilePage() {
         const snap = await getDoc(doc(db, 'coach_profiles', user.uid));
         if (snap.exists()) {
           const d = snap.data();
-          const loadedSessionTypes = Array.isArray(d.session_types_with_price) && d.session_types_with_price.length > 0
-            ? d.session_types_with_price.map((s: any) => ({ label: String(s.label || ''), price: String(s.price || '') }))
-            : [
-                ...(d.price_per_session ? [{ label: '1-on-1 Private', price: String(d.price_per_session) }] : []),
-                ...(d.price_group ? [{ label: 'Group Session', price: String(d.price_group) }] : []),
-                ...(d.price_virtual ? [{ label: 'Virtual / Film Review', price: String(d.price_virtual) }] : []),
-              ].filter(s => s.price) || [{ label: '1-on-1 Private', price: '' }];
+          const loadedOfferings: SessionOffering[] = Array.isArray(d.session_offerings) && d.session_offerings.length > 0
+            ? d.session_offerings
+            : ['1-on-1'];
           setProfile({
             specialty: d.specialty || '',
             secondarySpecialty: d.secondary_specialty || '',
             bio: d.bio || '',
             yearsExperience: String(d.years_experience || ''),
-            sessionTypes: loadedSessionTypes.length > 0 ? loadedSessionTypes : [{ label: '1-on-1 Private', price: '' }],
+            offerings: loadedOfferings,
+            startingPrice: d.price_per_session ? String(d.price_per_session) : '',
             city: d.city || '',
             state: d.state || '',
             streetAddress: d.street_address || '',
             skills: d.skills || [],
             certifications: d.certifications || [],
             photoUrl: d.photo_url || '',
-            venmoHandle: d.venmo_handle || '',
             affiliations: d.affiliations || [],
-            instantBook: d.instant_book === true,
             locationModes: {
               facility: d.location_modes?.facility ?? true,
               travel: d.location_modes?.travel ?? false,
               virtual: d.location_modes?.virtual ?? false,
             },
-            bufferMinutes: Number(d.buffer_minutes) || 0,
             academyName: d.academy_name || '',
-            promoCodes: Array.isArray(d.promo_codes) ? d.promo_codes : [],
           });
           if (d.photo_url) setPhotoPreview(d.photo_url);
           if (d.video_url) setVideoUploadedUrl(d.video_url);
@@ -228,40 +224,27 @@ export default function CoachEditProfilePage() {
 
   const handleSubmit = async () => {
     if (!user) return;
-    if (!profile.venmoHandle.trim()) {
-      setVenmoError('Venmo handle is required — players need it to pay you.');
-      const el = document.getElementById('venmo-input');
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return;
-    }
-    setVenmoError('');
     setIsSubmitting(true);
     try {
       const photoUrl = await uploadPhoto();
-      const prices = profile.sessionTypes.map(s => Number(s.price)).filter(p => p > 0);
       await setDoc(doc(db, 'coach_profiles', user.uid), {
         user_id: user.uid,
         specialty: profile.specialty,
         secondary_specialty: profile.secondarySpecialty || null,
         bio: profile.bio,
         years_experience: Number(profile.yearsExperience),
-        session_types_with_price: profile.sessionTypes.map(s => ({ label: s.label.trim(), price: Number(s.price) })),
-        price_per_session: prices.length > 0 ? Math.min(...prices) : 0,
+        session_offerings: profile.offerings,
+        price_per_session: Number(profile.startingPrice) || 0,
         city: profile.city,
         state: profile.state,
         street_address: profile.streetAddress,
         skills: profile.skills,
         certifications: profile.certifications,
         ...(photoUrl && { photo_url: photoUrl }),
-        venmo_handle: profile.venmoHandle.replace('@', '').trim(),
         affiliations: profile.affiliations,
         video_url: videoUploadedUrl || null,
-        instant_book: profile.instantBook,
         location_modes: profile.locationModes,
-        buffer_minutes: Number(profile.bufferMinutes) || 0,
-        timezone: getBrowserTimezone(),
         academy_name: profile.academyName.trim() || null,
-        promo_codes: profile.promoCodes,
         gallery_urls: galleryUrls,
         is_active: true,
         updated_at: serverTimestamp(),
@@ -628,66 +611,43 @@ export default function CoachEditProfilePage() {
             </div>
           </div>
 
-          {/* Pricing */}
+          {/* What you offer + pricing */}
           <div className="rounded-3xl p-8" style={cardStyle}>
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={iconStyle}><DollarSign size={20} /></div>
               <div>
-                <h2 className="font-bold text-ink">Pricing & Experience</h2>
-                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>Set your rate for each session type you offer</p>
+                <h2 className="font-bold text-ink">What you offer</h2>
+                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>Shown as informational tags. Players reach out to plan training.</p>
               </div>
             </div>
 
-            <div className="space-y-3 mb-3">
-              {profile.sessionTypes.map((st, idx) => (
-                <div key={idx} className="flex gap-3 items-center">
-                  <input
-                    type="text"
-                    placeholder={idx === 0 ? '1-on-1 Private' : 'e.g. Group Session'}
-                    value={st.label}
-                    onChange={e => setProfile(p => {
-                      const updated = [...p.sessionTypes];
-                      updated[idx] = { ...updated[idx], label: e.target.value };
-                      return { ...p, sessionTypes: updated };
-                    })}
-                    className="flex-1 rounded-xl p-4 text-sm text-ink focus:outline-none"
-                    style={inputStyle}
-                  />
-                  <div className="flex items-center rounded-xl overflow-hidden shrink-0"
-                    style={{ background: 'rgba(27,24,19,0.05)', border: '1px solid rgba(27,24,19,0.08)' }}>
-                    <span className="pl-3 text-sm font-bold shrink-0" style={{ color: 'rgba(27,24,19,0.35)' }}>$</span>
-                    <input
-                      type="number"
-                      placeholder="100"
-                      value={st.price}
-                      onChange={e => setProfile(p => {
-                        const updated = [...p.sessionTypes];
-                        updated[idx] = { ...updated[idx], price: e.target.value };
-                        return { ...p, sessionTypes: updated };
-                      })}
-                      className="w-24 bg-transparent py-4 pr-3 pl-1 text-sm text-ink focus:outline-none"
-                      style={{ colorScheme: 'light' }}
-                    />
-                  </div>
-                  {profile.sessionTypes.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setProfile(p => ({ ...p, sessionTypes: p.sessionTypes.filter((_, i) => i !== idx) }))}
-                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all hover:bg-[rgba(188,90,72,0.1)]"
-                      style={{ color: 'rgba(188,90,72,0.6)', border: '1px solid rgba(188,90,72,0.15)' }}>
-                      <X size={16} />
-                    </button>
-                  )}
-                </div>
-              ))}
+            <label className="block text-xs font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(27,24,19,0.4)' }}>Session types</label>
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              {ALL_OFFERINGS.map(o => {
+                const selected = profile.offerings.includes(o);
+                return (
+                  <button key={o} type="button" onClick={() => toggleOffering(o)}
+                    className="flex items-center justify-center gap-2 py-4 rounded-xl text-sm font-bold border-2 transition-all"
+                    style={{
+                      borderColor: selected ? '#1B1813' : 'rgba(27,24,19,0.08)',
+                      background: selected ? 'rgba(27,24,19,0.15)' : 'transparent',
+                      color: selected ? '#1B1813' : 'rgba(27,24,19,0.5)',
+                    }}>
+                    {selected && <CheckCircle2 size={14} />}
+                    {OFFERING_LABEL[o]} sessions
+                  </button>
+                );
+              })}
             </div>
-            <button
-              type="button"
-              onClick={() => setProfile(p => ({ ...p, sessionTypes: [...p.sessionTypes, { label: '', price: '' }] }))}
-              className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest px-4 py-2.5 rounded-xl mb-6 transition-all hover:bg-[rgba(27,24,19,0.05)]"
-              style={{ color: '#1B1813', border: '1px solid rgba(27,24,19,0.2)' }}>
-              <Plus size={14} /> Add Session Type
-            </button>
+
+            <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(27,24,19,0.4)' }}>Starting price</label>
+            <div className="flex items-center rounded-xl overflow-hidden mb-6" style={{ background: 'rgba(27,24,19,0.05)', border: '1px solid rgba(27,24,19,0.08)' }}>
+              <span className="pl-4 text-sm font-bold" style={{ color: 'rgba(27,24,19,0.35)' }}>$</span>
+              <input type="number" placeholder="100" value={profile.startingPrice}
+                onChange={e => setProfile(p => ({ ...p, startingPrice: e.target.value }))}
+                className="flex-1 bg-transparent py-4 pr-4 pl-1 text-sm text-ink focus:outline-none" style={{ colorScheme: 'light' }} />
+              <span className="pr-4 text-sm" style={{ color: 'rgba(27,24,19,0.3)' }}>/ session</span>
+            </div>
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(27,24,19,0.4)' }}>Years Experience</label>
@@ -718,75 +678,17 @@ export default function CoachEditProfilePage() {
             </div>
           </div>
 
-          {/* Venmo */}
-          <div className="rounded-3xl p-8" style={cardStyle}>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(0,141,245,0.12)', color: '#008DF5' }}>
-                <CreditCard size={20} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="font-bold text-ink">Venmo Handle <span style={{ color: '#BC5A48' }}>*</span></h2>
-                  <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: 'rgba(188,90,72,0.1)', color: '#BC5A48', border: '1px solid rgba(188,90,72,0.2)' }}>Required</span>
-                </div>
-                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>Players pay you directly via Venmo after sessions</p>
-              </div>
-            </div>
-            <div id="venmo-input" className="flex items-center gap-3 rounded-xl overflow-hidden"
-              style={{ background: 'rgba(27,24,19,0.05)', border: `1px solid ${venmoError ? 'rgba(188,90,72,0.5)' : 'rgba(27,24,19,0.08)'}` }}>
-              <span className="pl-4 font-bold text-sm shrink-0" style={{ color: 'rgba(27,24,19,0.3)' }}>@</span>
-              <input
-                type="text"
-                value={profile.venmoHandle}
-                onChange={e => {
-                  setVenmoError('');
-                  setProfile(p => ({ ...p, venmoHandle: e.target.value.replace('@', '').replace(/\s/g, '') }));
-                }}
-                placeholder="your-venmo-username"
-                className="flex-1 bg-transparent py-4 pr-4 text-sm text-ink focus:outline-none"
-              />
-            </div>
-            {venmoError && (
-              <p className="text-xs mt-2 font-medium" style={{ color: '#BC5A48' }}>{venmoError}</p>
-            )}
-            {!venmoError && profile.venmoHandle && (
-              <p className="text-xs mt-2" style={{ color: 'rgba(27,24,19,0.3)' }}>
-                Students will pay: venmo.com/u/{profile.venmoHandle}
-              </p>
-            )}
-          </div>
-
-          {/* Booking settings */}
+          {/* Where you train */}
           <div className="rounded-3xl p-8" style={cardStyle}>
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--paper-warm)', color: 'var(--ink)' }}>
-                <CheckCircle2 size={20} />
+                <MapPin size={20} />
               </div>
               <div>
-                <h2 className="font-bold text-ink">Booking settings</h2>
-                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>How players book time with you</p>
+                <h2 className="font-bold text-ink">Where you train</h2>
+                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>Shown on your profile so players know how you work</p>
               </div>
             </div>
-
-            {/* Instant book */}
-            <button
-              type="button"
-              onClick={() => setProfile(p => ({ ...p, instantBook: !p.instantBook }))}
-              className="w-full flex items-center justify-between gap-4 p-4 rounded-2xl mb-5 text-left transition-colors"
-              style={{ background: 'var(--paper-warm)', border: '1px solid var(--line)' }}
-            >
-              <div>
-                <p className="text-sm font-medium text-ink">Instant book</p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--ink-soft)' }}>
-                  {profile.instantBook
-                    ? 'Sessions are confirmed automatically — no approval step.'
-                    : 'You review and approve each request (request to book).'}
-                </p>
-              </div>
-              <span className="shrink-0 w-12 h-7 rounded-full flex items-center transition-colors" style={{ background: profile.instantBook ? 'var(--black)' : 'rgba(27,24,19,0.16)', padding: 3 }}>
-                <span className="w-5 h-5 rounded-full bg-white transition-transform" style={{ transform: profile.instantBook ? 'translateX(20px)' : 'translateX(0)' }} />
-              </span>
-            </button>
 
             {/* Location modes */}
             <p className="text-xs uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--ink-faint)' }}>Session locations you offer</p>
@@ -815,27 +717,8 @@ export default function CoachEditProfilePage() {
               })}
             </div>
 
-            {/* Buffer */}
-            <p className="text-xs uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--ink-faint)' }}>Buffer between sessions</p>
-            <div className="flex flex-wrap gap-2">
-              {[0, 15, 30, 45, 60].map(min => (
-                <button
-                  key={min}
-                  type="button"
-                  onClick={() => setProfile(p => ({ ...p, bufferMinutes: min }))}
-                  className="px-4 py-2 rounded-full text-sm transition-colors"
-                  style={{
-                    background: profile.bufferMinutes === min ? 'var(--black)' : 'var(--card-cream)',
-                    border: `1px solid ${profile.bufferMinutes === min ? 'var(--black)' : 'var(--line-strong)'}`,
-                    color: profile.bufferMinutes === min ? 'var(--paper)' : 'var(--ink-soft)',
-                  }}
-                >
-                  {min === 0 ? 'None' : `${min} min`}
-                </button>
-              ))}
-            </div>
             {/* Academy / facility */}
-            <p className="text-xs uppercase tracking-[0.14em] mt-6 mb-2" style={{ color: 'var(--ink-faint)' }}>Academy / facility (optional)</p>
+            <p className="text-xs uppercase tracking-[0.14em] mb-2" style={{ color: 'var(--ink-faint)' }}>Academy / facility (optional)</p>
             <input
               type="text"
               value={profile.academyName}
@@ -843,87 +726,6 @@ export default function CoachEditProfilePage() {
               placeholder="e.g. The Upper Deck, 1RM Performance"
               className="cg-input"
             />
-
-            <p className="text-xs mt-4" style={{ color: 'var(--ink-faint)' }}>
-              Your timezone: {tzAbbrev(getBrowserTimezone())} · used for reminders & calendar invites.
-            </p>
-          </div>
-
-          {/* Promo codes */}
-          <div className="rounded-3xl p-8" style={cardStyle}>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--paper-warm)', color: 'var(--ink)' }}>
-                <DollarSign size={20} />
-              </div>
-              <div>
-                <h2 className="font-bold text-ink">Promo codes</h2>
-                <p className="text-xs" style={{ color: 'rgba(27,24,19,0.4)' }}>Discounts players can apply at checkout</p>
-              </div>
-            </div>
-
-            {profile.promoCodes.length > 0 && (
-              <div className="space-y-2 mb-5">
-                {profile.promoCodes.map((pc, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--paper-warm)', border: '1px solid var(--line)' }}>
-                    <span className="font-mono text-sm font-bold px-2 py-1 rounded" style={{ background: 'var(--card-cream)', color: 'var(--ink)', border: '1px solid var(--line)' }}>{pc.code}</span>
-                    <span className="text-sm" style={{ color: 'var(--ink-soft)' }}>
-                      {pc.type === 'percent' ? `${pc.value}% off` : `$${pc.value} off`}
-                    </span>
-                    <div className="flex-1" />
-                    <button type="button"
-                      onClick={() => setProfile(p => ({ ...p, promoCodes: p.promoCodes.map((x, xi) => xi === i ? { ...x, active: !x.active } : x) }))}
-                      className="text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full"
-                      style={{ background: pc.active ? 'rgba(94,140,90,0.15)' : 'transparent', color: pc.active ? 'var(--c-confirmed)' : 'var(--ink-faint)', border: `1px solid ${pc.active ? 'rgba(94,140,90,0.3)' : 'var(--line-strong)'}` }}>
-                      {pc.active ? 'Active' : 'Paused'}
-                    </button>
-                    <button type="button"
-                      onClick={() => setProfile(p => ({ ...p, promoCodes: p.promoCodes.filter((_, xi) => xi !== i) }))}
-                      className="p-1.5 rounded-full transition-colors hover:bg-[rgba(188,90,72,0.1)]" style={{ color: 'var(--c-declined)' }} aria-label="Remove code">
-                      <X size={15} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                value={newPromo.code}
-                onChange={e => setNewPromo(p => ({ ...p, code: e.target.value.toUpperCase().replace(/\s/g, '') }))}
-                placeholder="CODE"
-                className="cg-input sm:flex-1 font-mono"
-              />
-              <select
-                value={newPromo.type}
-                onChange={e => setNewPromo(p => ({ ...p, type: e.target.value as 'percent' | 'amount' }))}
-                className="cg-input cursor-pointer sm:w-32"
-              >
-                <option value="percent">% off</option>
-                <option value="amount">$ off</option>
-              </select>
-              <input
-                type="number" min="1"
-                value={newPromo.value}
-                onChange={e => setNewPromo(p => ({ ...p, value: e.target.value }))}
-                placeholder={newPromo.type === 'percent' ? '10' : '20'}
-                className="cg-input sm:w-28"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const code = newPromo.code.trim();
-                  const value = Number(newPromo.value);
-                  if (!code || !value || value <= 0) return;
-                  if (profile.promoCodes.some(p => p.code === code)) return;
-                  setProfile(p => ({ ...p, promoCodes: [...p.promoCodes, { code, type: newPromo.type, value, active: true }] }));
-                  setNewPromo({ code: '', type: 'percent', value: '' });
-                }}
-                className="btn-primary py-2.5 px-5 text-sm shrink-0"
-              >
-                <Plus size={15} /> Add
-              </button>
-            </div>
           </div>
 
           {/* Photo gallery */}

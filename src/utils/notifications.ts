@@ -5,9 +5,8 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export type NotificationType =
-  | 'booking_request' | 'booking_confirmed' | 'booking_declined'
-  | 'reschedule_request' | 'reschedule_resolved'
-  | 'waitlist' | 'review' | 'info';
+  | 'connection_request' | 'connection_accepted' | 'connection_ignored'
+  | 'message' | 'info';
 
 export async function notify(
   userId: string | undefined | null,

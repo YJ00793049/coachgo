@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../firebase';
-import { collection, getDocs, doc, getDoc, setDoc, query, orderBy, updateDoc, deleteDoc, getCountFromServer, where, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, query, orderBy, updateDoc, deleteDoc, getCountFromServer, serverTimestamp } from 'firebase/firestore';
 import { motion } from 'framer-motion';
-import { Loader2, ShieldAlert, Users, Calendar, DollarSign, TrendingUp, CheckCircle2, Clock, X, ChevronDown, ChevronUp, Star, Trash2, BarChart2, Settings, Eye } from 'lucide-react';
+import { Loader2, ShieldAlert, Users, Link2, TrendingUp, CheckCircle2, Clock, ChevronDown, ChevronUp, Star, Trash2, BarChart2, Settings, Eye } from 'lucide-react';
 import PageTransition from '../components/PageTransition';
 import { Link } from 'react-router-dom';
 
@@ -13,14 +13,14 @@ const ADMIN_EMAIL = 'yuvrajjindal2020@gmail.com';
 export default function AdminPage() {
   const [user] = useAuthState(auth);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [bookings, setBookings] = useState<any[]>([]);
+  const [connections, setConnections] = useState<any[]>([]);
   const [coaches, setCoaches] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
   const [profileViews, setProfileViews] = useState<number | null>(null);
   const [flags, setFlags] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'funnel' | 'bookings' | 'coaches' | 'reviews' | 'settings'>('overview');
-  const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'funnel' | 'connections' | 'coaches' | 'reviews' | 'settings'>('overview');
+  const [expandedConn, setExpandedConn] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
 
@@ -45,13 +45,13 @@ export default function AdminPage() {
     if (!isAdmin) return;
     const fetchAll = async () => {
       try {
-        const [bookingsSnap, coachesSnap, reviewsSnap, flagsSnap] = await Promise.all([
-          getDocs(query(collection(db, 'bookings'), orderBy('created_at', 'desc'))),
+        const [connSnap, coachesSnap, reviewsSnap, flagsSnap] = await Promise.all([
+          getDocs(query(collection(db, 'connections'), orderBy('created_at', 'desc'))).catch(() => null),
           getDocs(collection(db, 'coach_profiles')),
           getDocs(query(collection(db, 'reviews'), orderBy('created_at', 'desc'))).catch(() => null),
           getDoc(doc(db, 'config', 'flags')).catch(() => null),
         ]);
-        setBookings(bookingsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        if (connSnap) setConnections(connSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setCoaches(coachesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         if (reviewsSnap) setReviews(reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         if (flagsSnap && flagsSnap.exists()) { setFlags(flagsSnap.data()); setAnnouncement(flagsSnap.data().announcement || ''); }
@@ -68,11 +68,11 @@ export default function AdminPage() {
     fetchAll();
   }, [isAdmin]);
 
-  const overrideStatus = async (bookingId: string, status: string) => {
-    setUpdatingId(bookingId);
+  const overrideStatus = async (connId: string, status: string) => {
+    setUpdatingId(connId);
     try {
-      await updateDoc(doc(db, 'bookings', bookingId), { status });
-      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status } : b));
+      await updateDoc(doc(db, 'connections', connId), { status, updated_at: serverTimestamp() });
+      setConnections(prev => prev.map(c => c.id === connId ? { ...c, status } : c));
     } catch (err) { console.error(err); }
     finally { setUpdatingId(null); }
   };
@@ -130,21 +130,19 @@ export default function AdminPage() {
     );
   }
 
-  const totalRevenue = bookings.filter(b => b.status === 'completed').reduce((s, b) => s + (b.total_price || 0), 0);
-  const byStatus = (s: string) => bookings.filter(b => b.status === s).length;
+  const byStatus = (s: string) => connections.filter(c => c.status === s).length;
 
   const statusColor: Record<string, string> = {
-    pending: '#1B1813', confirmed: '#5E8C5A', completed: '#8A7BA8',
-    cancelled: 'rgba(27,24,19,0.3)', declined: '#BC5A48', reschedule_requested: '#C79A57',
+    pending: '#1B1813', accepted: '#5E8C5A', ignored: 'rgba(27,24,19,0.35)',
   };
 
   const overviewStats = [
-    { label: 'Total Bookings', value: bookings.length, icon: <Calendar size={22} /> },
-    { label: 'Total Revenue', value: `$${totalRevenue}`, icon: <DollarSign size={22} /> },
+    { label: 'Total Connections', value: connections.length, icon: <Link2 size={22} /> },
     { label: 'Active Coaches', value: coaches.length, icon: <Users size={22} /> },
     { label: 'Pending', value: byStatus('pending'), icon: <Clock size={22} /> },
-    { label: 'Confirmed', value: byStatus('confirmed'), icon: <CheckCircle2 size={22} /> },
-    { label: 'Completed', value: byStatus('completed'), icon: <TrendingUp size={22} /> },
+    { label: 'Accepted', value: byStatus('accepted'), icon: <CheckCircle2 size={22} /> },
+    { label: 'Ignored', value: byStatus('ignored'), icon: <TrendingUp size={22} /> },
+    { label: 'Profile Views', value: profileViews ?? 0, icon: <Eye size={22} /> },
   ];
 
   return (
@@ -175,7 +173,7 @@ export default function AdminPage() {
 
           {/* Tabs */}
           <div className="flex gap-2 mb-8 flex-wrap">
-            {(['overview', 'funnel', 'bookings', 'coaches', 'reviews', 'settings'] as const).map(tab => (
+            {(['overview', 'funnel', 'connections', 'coaches', 'reviews', 'settings'] as const).map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className="px-5 py-2.5 rounded-xl text-sm font-bold uppercase tracking-widest transition-all"
                 style={{
@@ -192,15 +190,15 @@ export default function AdminPage() {
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
-                <h3 className="font-display text-xl text-ink mb-6">Bookings by Status</h3>
+                <h3 className="font-display text-xl text-ink mb-6">Connections by Status</h3>
                 <div className="space-y-4">
                   {Object.entries(statusColor).map(([status, color]) => {
                     const count = byStatus(status);
-                    const pct = bookings.length > 0 ? Math.round((count / bookings.length) * 100) : 0;
+                    const pct = connections.length > 0 ? Math.round((count / connections.length) * 100) : 0;
                     return (
                       <div key={status}>
                         <div className="flex justify-between mb-1.5">
-                          <span className="text-xs font-bold capitalize" style={{ color: 'rgba(27,24,19,0.5)' }}>{status.replace('_', ' ')}</span>
+                          <span className="text-xs font-bold capitalize" style={{ color: 'rgba(27,24,19,0.5)' }}>{status}</span>
                           <span className="text-xs font-bold" style={{ color }}>{count} ({pct}%)</span>
                         </div>
                         <div className="w-full h-1.5 rounded-full" style={{ background: 'rgba(27,24,19,0.06)' }}>
@@ -213,20 +211,21 @@ export default function AdminPage() {
               </div>
 
               <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
-                <h3 className="font-display text-xl text-ink mb-6">Recent Bookings</h3>
+                <h3 className="font-display text-xl text-ink mb-6">Recent Connections</h3>
                 <div className="space-y-3">
-                  {bookings.slice(0, 6).map(b => (
-                    <div key={b.id} className="flex items-center justify-between gap-4 py-2 border-b border-[rgba(27,24,19,0.06)] last:border-0">
-                      <div>
-                        <p className="text-sm font-bold text-ink">{b.player_name || 'Player'}</p>
-                        <p className="text-xs" style={{ color: 'rgba(27,24,19,0.35)' }}>{b.session_type} · {b.date}</p>
+                  {connections.slice(0, 6).map(c => (
+                    <div key={c.id} className="flex items-center justify-between gap-4 py-2 border-b border-[rgba(27,24,19,0.06)] last:border-0">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-ink truncate">{c.player_name || 'Player'} → {c.coach_name || 'Coach'}</p>
+                        <p className="text-xs truncate" style={{ color: 'rgba(27,24,19,0.35)' }}>{c.player_email || c.player_phone || '—'}</p>
                       </div>
-                      <span className="text-[10px] font-bold px-2 py-1 rounded-full capitalize"
-                        style={{ background: `${statusColor[b.status] || '#fff'}15`, color: statusColor[b.status] || '#fff' }}>
-                        {b.status}
+                      <span className="text-[10px] font-bold px-2 py-1 rounded-full capitalize shrink-0"
+                        style={{ background: `${statusColor[c.status] || '#fff'}15`, color: statusColor[c.status] || '#fff' }}>
+                        {c.status}
                       </span>
                     </div>
                   ))}
+                  {connections.length === 0 && <p className="text-sm" style={{ color: 'rgba(27,24,19,0.3)' }}>No connections yet.</p>}
                 </div>
               </div>
             </div>
@@ -235,21 +234,19 @@ export default function AdminPage() {
           {/* Funnel Tab */}
           {activeTab === 'funnel' && (() => {
             const views = profileViews ?? 0;
-            const created = bookings.length;
-            const confirmed = byStatus('confirmed') + byStatus('completed');
-            const completed = byStatus('completed');
+            const created = connections.length;
+            const accepted = byStatus('accepted');
             const steps = [
               { label: 'Profile views', value: views, icon: <Eye size={18} /> },
-              { label: 'Bookings created', value: created, icon: <Calendar size={18} /> },
-              { label: 'Confirmed', value: confirmed, icon: <CheckCircle2 size={18} /> },
-              { label: 'Completed (paid)', value: completed, icon: <DollarSign size={18} /> },
+              { label: 'Connection requests', value: created, icon: <Link2 size={18} /> },
+              { label: 'Accepted', value: accepted, icon: <CheckCircle2 size={18} /> },
             ];
             const max = Math.max(views, created, 1);
             const conv = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0);
             return (
               <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] p-8">
-                <h3 className="font-display text-xl text-ink mb-2">Conversion funnel</h3>
-                <p className="text-sm mb-8" style={{ color: 'rgba(27,24,19,0.45)' }}>View → book → confirm → complete, across the platform.</p>
+                <h3 className="font-display text-xl text-ink mb-2">Connection funnel</h3>
+                <p className="text-sm mb-8" style={{ color: 'rgba(27,24,19,0.45)' }}>View → connect → accepted, across the platform.</p>
                 <div className="space-y-5">
                   {steps.map((s, i) => (
                     <div key={s.label}>
@@ -267,62 +264,60 @@ export default function AdminPage() {
                   ))}
                 </div>
                 <p className="text-xs mt-6" style={{ color: 'rgba(27,24,19,0.35)' }}>
-                  Overall view→booking: <strong style={{ color: 'var(--ink)' }}>{conv(created, views)}%</strong> · booking→completed: <strong style={{ color: 'var(--ink)' }}>{conv(completed, created)}%</strong>
+                  Overall view→connect: <strong style={{ color: 'var(--ink)' }}>{conv(created, views)}%</strong> · connect→accepted: <strong style={{ color: 'var(--ink)' }}>{conv(accepted, created)}%</strong>
                 </p>
               </div>
             );
           })()}
 
-          {/* Bookings Tab */}
-          {activeTab === 'bookings' && (
+          {/* Connections Tab */}
+          {activeTab === 'connections' && (
             <div className="glass-card rounded-3xl border border-[rgba(27,24,19,0.10)] overflow-hidden">
               <table className="w-full text-left text-sm">
                 <thead className="bg-[rgba(27,24,19,0.04)] text-[10px] uppercase tracking-widest font-bold" style={{ color: 'rgba(27,24,19,0.3)' }}>
                   <tr>
                     <th className="px-6 py-4">Player</th>
-                    <th className="px-6 py-4">Session</th>
-                    <th className="px-6 py-4">Date</th>
-                    <th className="px-6 py-4">Price</th>
+                    <th className="px-6 py-4">Coach</th>
+                    <th className="px-6 py-4">Contact</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[rgba(27,24,19,0.06)]">
-                  {bookings.map(b => (
+                  {connections.map(c => (
                     <>
-                      <tr key={b.id} className="hover:bg-[rgba(27,24,19,0.03)] transition-colors cursor-pointer"
-                        onClick={() => setExpandedBooking(expandedBooking === b.id ? null : b.id)}>
-                        <td className="px-6 py-4 font-medium text-ink">{b.player_name || '—'}</td>
-                        <td className="px-6 py-4" style={{ color: 'rgba(27,24,19,0.45)' }}>{b.session_type}</td>
-                        <td className="px-6 py-4" style={{ color: 'rgba(27,24,19,0.45)' }}>{b.date}</td>
-                        <td className="px-6 py-4 font-bold" style={{ color: '#1B1813' }}>${b.total_price}</td>
+                      <tr key={c.id} className="hover:bg-[rgba(27,24,19,0.03)] transition-colors cursor-pointer"
+                        onClick={() => setExpandedConn(expandedConn === c.id ? null : c.id)}>
+                        <td className="px-6 py-4 font-medium text-ink">{c.player_name || '—'}</td>
+                        <td className="px-6 py-4" style={{ color: 'rgba(27,24,19,0.45)' }}>{c.coach_name || '—'}</td>
+                        <td className="px-6 py-4" style={{ color: 'rgba(27,24,19,0.45)' }}>{c.player_email || c.player_phone || '—'}</td>
                         <td className="px-6 py-4">
                           <span className="text-[10px] font-bold px-2 py-1 rounded-full capitalize"
-                            style={{ background: `${statusColor[b.status] || '#fff'}15`, color: statusColor[b.status] || '#fff' }}>
-                            {b.status?.replace('_', ' ')}
+                            style={{ background: `${statusColor[c.status] || '#fff'}15`, color: statusColor[c.status] || '#fff' }}>
+                            {c.status}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          {expandedBooking === b.id ? <ChevronUp size={16} style={{ color: 'rgba(27,24,19,0.3)' }} /> : <ChevronDown size={16} style={{ color: 'rgba(27,24,19,0.3)' }} />}
+                          {expandedConn === c.id ? <ChevronUp size={16} style={{ color: 'rgba(27,24,19,0.3)' }} /> : <ChevronDown size={16} style={{ color: 'rgba(27,24,19,0.3)' }} />}
                         </td>
                       </tr>
-                      {expandedBooking === b.id && (
-                        <tr key={`${b.id}-exp`}>
-                          <td colSpan={6} className="px-6 py-4" style={{ background: 'rgba(27,24,19,0.02)' }}>
+                      {expandedConn === c.id && (
+                        <tr key={`${c.id}-exp`}>
+                          <td colSpan={5} className="px-6 py-4" style={{ background: 'rgba(27,24,19,0.02)' }}>
                             <div className="flex flex-wrap gap-4 text-xs mb-4">
-                              <div><span style={{ color: 'rgba(27,24,19,0.35)' }}>Coach ID: </span><span className="text-ink font-mono">{b.coach_id}</span></div>
-                              <div><span style={{ color: 'rgba(27,24,19,0.35)' }}>Player ID: </span><span className="text-ink font-mono">{b.player_id}</span></div>
-                              <div><span style={{ color: 'rgba(27,24,19,0.35)' }}>Time: </span><span className="text-ink">{b.time_slot}</span></div>
-                              <div><span style={{ color: 'rgba(27,24,19,0.35)' }}>Level: </span><span className="text-ink">{b.skill_level}</span></div>
-                              {b.notes && <div className="w-full"><span style={{ color: 'rgba(27,24,19,0.35)' }}>Notes: </span><span className="text-ink">{b.notes}</span></div>}
+                              <div><span style={{ color: 'rgba(27,24,19,0.35)' }}>Coach ID: </span><span className="text-ink font-mono">{c.coach_id}</span></div>
+                              <div><span style={{ color: 'rgba(27,24,19,0.35)' }}>Player ID: </span><span className="text-ink font-mono">{c.player_id}</span></div>
+                              {c.player_phone && <div><span style={{ color: 'rgba(27,24,19,0.35)' }}>Phone: </span><span className="text-ink">{c.player_phone}</span></div>}
+                              {c.player_email && <div><span style={{ color: 'rgba(27,24,19,0.35)' }}>Email: </span><span className="text-ink">{c.player_email}</span></div>}
+                              {c.player_note && <div className="w-full"><span style={{ color: 'rgba(27,24,19,0.35)' }}>Note: </span><span className="text-ink">{c.player_note}</span></div>}
                             </div>
                             <div className="flex gap-2 flex-wrap">
-                              {['pending','confirmed','completed','cancelled','declined'].map(s => (
-                                <button key={s} disabled={b.status === s || updatingId === b.id}
-                                  onClick={() => overrideStatus(b.id, s)}
+                              {['pending','accepted','ignored'].map(s => (
+                                <button key={s} disabled={c.status === s || updatingId === c.id}
+                                  onClick={() => overrideStatus(c.id, s)}
                                   className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all disabled:opacity-40 hover:opacity-80"
                                   style={{ background: `${statusColor[s] || '#fff'}15`, color: statusColor[s] || '#fff', border: `1px solid ${statusColor[s] || '#fff'}30` }}>
-                                  {updatingId === b.id ? '...' : `→ ${s}`}
+                                  {updatingId === c.id ? '...' : `→ ${s}`}
                                 </button>
                               ))}
                             </div>
@@ -333,8 +328,8 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
-              {bookings.length === 0 && (
-                <div className="py-16 text-center" style={{ color: 'rgba(27,24,19,0.3)' }}>No bookings yet.</div>
+              {connections.length === 0 && (
+                <div className="py-16 text-center" style={{ color: 'rgba(27,24,19,0.3)' }}>No connections yet.</div>
               )}
             </div>
           )}
@@ -425,7 +420,7 @@ export default function AdminPage() {
                 {[
                   { key: 'maintenance', label: 'Maintenance banner', desc: 'Show a site-wide maintenance notice.' },
                   { key: 'ai_match_enabled', label: 'AI match', desc: 'Enable the AI coach-matching tool.' },
-                  { key: 'instant_book_promo', label: 'Promote instant book', desc: 'Highlight instant-book coaches.' },
+                  { key: 'featured_coaches_promo', label: 'Promote featured coaches', desc: 'Highlight featured coaches on the landing page.' },
                 ].map(f => (
                   <div key={f.key} className="flex items-center justify-between gap-4 py-3" style={{ borderTop: '1px solid var(--line)' }}>
                     <div>

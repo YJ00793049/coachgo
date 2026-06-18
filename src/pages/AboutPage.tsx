@@ -28,7 +28,7 @@ const VALUES = [
     title: 'Specialization',
     icon: <Trophy size={28} />,
     desc: 'General coaching only gets you so far.',
-    detail: "Our marketplace is built around specialists — coaches who've mastered one discipline and teach it best.",
+    detail: "Our platform is built around specialists — coaches who've mastered one discipline and teach it best.",
     accentColor: '#5E8C5A',
     glowColor: 'rgba(94,140,90,0.25)',
   },
@@ -83,7 +83,7 @@ export default function AboutPage() {
               <p style={{ color: 'rgba(27,24,19,0.55)' }}>
                 <span className="text-ink font-semibold">CoachGo is the platform that should have always existed.</span>{' '}
                 One place where every coach is a specialist, every profile is transparent, and every player —
-                no matter where they are in their development — can find exactly the coach they need and book with confidence.
+                no matter where they are in their development — can find exactly the coach they need and connect with confidence.
               </p>
             </motion.div>
           </div>

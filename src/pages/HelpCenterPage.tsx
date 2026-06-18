@@ -44,49 +44,49 @@ function FAQItem({ question, answer }: FAQItemProps) {
 
 const FAQ_DATA = [
   {
-    category: "Booking",
+    category: "Connecting",
     items: [
       {
-        question: "How do I book a session?",
-        answer: "To book a session, browse our marketplace of elite coaches, select a coach that fits your needs, and click 'Book Session' on their profile. You'll be guided through selecting a session type, date, and time."
+        question: "How do I connect with a coach?",
+        answer: "Browse coaches, open the profile of one who fits your needs, and click 'Connect'. Share a phone number or email (and an optional note), and the coach reaches out to you directly."
       },
       {
-        question: "Can I reschedule or cancel?",
-        answer: "Yes, you can reschedule or cancel your session through your Dashboard up to 24 hours before the scheduled time. Cancellations within 24 hours may be subject to a fee depending on the coach's policy."
+        question: "What happens after I connect?",
+        answer: "The coach receives your request and contact info by email and in their dashboard. They reach out directly to talk through training. You'll also get a confirmation email that your request was sent."
       },
       {
-        question: "What happens after I book?",
-        answer: "After booking, you'll receive a confirmation email with all the session details. Your coach will also be notified and will reach out if any additional preparation is needed. You can view all your upcoming sessions in your Dashboard."
+        question: "When can I message a coach in the app?",
+        answer: "In-app messaging unlocks once a coach accepts your connection request. Before that, the coach can still reach you using the phone or email you shared."
       }
     ]
   },
   {
-    category: "Payments",
+    category: "Scheduling & Payments",
     items: [
       {
-        question: "What payment methods do you accept?",
-        answer: "Payments are made directly to coaches via Venmo after the coach confirms your session. Each coach's Venmo handle is shown on their profile and on the booking confirmation page."
+        question: "How are sessions scheduled?",
+        answer: "Scheduling is arranged directly between you and your coach after you connect. CoachGo doesn't handle in-app booking — you set times together that work for both of you."
       },
       {
-        question: "When am I charged?",
-        answer: "You are not charged at the time of booking. Once the coach confirms your session, you'll send payment directly to the coach via Venmo. No payment is due until the coach accepts."
+        question: "How do payments work?",
+        answer: "Payments are handled directly between you and your coach. CoachGo doesn't process or store any payments — you and your coach agree on pricing once you connect."
       },
       {
         question: "Do coaches set their own prices?",
-        answer: "Yes, each coach on CoachGo sets their own rates based on their experience, specialty, and session type. You can see the pricing clearly listed on each coach's profile."
+        answer: "Yes. Each coach lists a starting price on their profile for reference, and final pricing is arranged directly with the coach based on what you need."
       }
     ]
   },
   {
-    category: "Coaching Sessions",
+    category: "Coaches",
     items: [
       {
         question: "What's the difference between 1-on-1 and Group sessions?",
-        answer: "1-on-1 sessions provide personalized, focused instruction tailored specifically to your individual needs. Group sessions are more cost-effective and allow for peer learning and competitive drills in a small group setting."
+        answer: "1-on-1 sessions provide personalized, focused instruction tailored to you. Group sessions are more cost-effective and allow for peer learning and competitive drills in a small group. Each profile shows which a coach offers."
       },
       {
-        question: "How do I prepare for my first session?",
-        answer: "Arrive 10-15 minutes early to warm up. Bring your own gear (glove, bat, helmet, etc.) and plenty of water. Come with a clear goal of what you want to work on during the session."
+        question: "How do I know a coach is the right fit?",
+        answer: "Every profile includes an intro video, verified credentials, real reviews, and a clear specialty — and you can connect with as many specialists as you like to find your best match."
       }
     ]
   },
@@ -99,11 +99,11 @@ const FAQ_DATA = [
       },
       {
         question: "How do I update my profile?",
-        answer: "Once logged in, navigate to your Dashboard and click on 'Edit Profile'. You can update your personal information, skill level, and primary position there."
+        answer: "Once logged in, go to your profile from the navigation bar. Players can add their age, position, skill level, goals, and bio; coaches edit their profile from the dashboard."
       },
       {
-        question: "How do I leave a review?",
-        answer: "After completing a session, you'll receive an email invitation to rate and review your coach. You can also leave a review directly from the 'Past Sessions' section in your Dashboard."
+        question: "How do I see my connections?",
+        answer: "Your Dashboard shows every connection request you've sent (or received, if you're a coach), its status, and quick access to message coaches once a request is accepted."
       }
     ]
   }

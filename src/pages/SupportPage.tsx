@@ -20,7 +20,7 @@ export default function SupportPage() {
             </div>
             <h2 className="text-2xl font-bold mb-4">Help Center</h2>
             <p className="text-text-secondary mb-6 leading-relaxed">
-              Find answers to frequently asked questions about booking, payments, and coaching sessions.
+              Find answers to frequently asked questions about discovering coaches, connecting, and training.
             </p>
             <Link 
               to="/help"
