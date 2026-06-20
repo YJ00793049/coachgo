@@ -776,6 +776,344 @@ function FieldingScene() {
 
 const SCENES = [StrengthScene, HittingScene, PitchingScene, FieldingScene];
 
+/* ── Clubhouse Nav ──────────────────────────────────────────────── */
+
+const CLUBHOUSE_DATA = [
+  {
+    slug: 'strength' as const,
+    discipline: 'Strength',
+    tagline: 'Build the engine\nthat drives everything.',
+    desc: 'Baseball performance starts in the weight room. Find certified strength coaches who program for athletes, not just gym-goers.',
+    accent: 'rgba(232,196,155,0.50)',
+    glow: 'rgba(232,196,155,0.55)',
+  },
+  {
+    slug: 'hitting' as const,
+    discipline: 'Hitting',
+    tagline: 'More exit velocity.\nBetter decisions at the plate.',
+    desc: 'Work with hitting specialists who break down mechanics, improve bat path, and sharpen plate discipline under pressure.',
+    accent: 'rgba(219,167,132,0.50)',
+    glow: 'rgba(219,167,132,0.55)',
+  },
+  {
+    slug: 'pitching' as const,
+    discipline: 'Pitching',
+    tagline: 'Command the zone.\nAdd velocity. Stay healthy.',
+    desc: 'Find pitching coaches who blend biomechanics with real-game strategy to help you throw harder, sharper, and longer.',
+    accent: 'rgba(173,197,215,0.50)',
+    glow: 'rgba(173,197,215,0.55)',
+  },
+  {
+    slug: 'fielding' as const,
+    discipline: 'Fielding',
+    tagline: 'Every routine play.\nEvery tough chance.',
+    desc: 'Sharpen your reads, footwork, and arm strength with fielding coaches who focus on the details that separate good from great.',
+    accent: 'rgba(185,203,166,0.50)',
+    glow: 'rgba(185,203,166,0.55)',
+  },
+] as const;
+
+function ClubhouseIllustration({
+  activeIdx,
+  hoveredIdx,
+  onZoneClick,
+  onZoneEnter,
+  onZoneLeave,
+}: {
+  activeIdx: number;
+  hoveredIdx: number | null;
+  onZoneClick: (i: number) => void;
+  onZoneEnter: (i: number) => void;
+  onZoneLeave: () => void;
+}) {
+  const reduce = useReducedMotion();
+  const ink = 'rgba(27,24,19,0.55)';
+  const inkSoft = 'rgba(27,24,19,0.22)';
+  const wood = '#C99A6B';
+  const woodDark = '#A67C52';
+  const plateC = 'rgba(219,167,132,0.85)';
+  const FLOOR = 178;
+  const ZW = 190;
+
+  return (
+    <svg viewBox="0 0 760 188" className="w-full h-full" aria-hidden>
+      {/* Floor */}
+      <line x1="0" y1={FLOOR} x2="760" y2={FLOOR} stroke={inkSoft} strokeWidth="1.5" />
+      {/* Zone dividers */}
+      {[190, 380, 570].map(x => (
+        <line key={x} x1={x} y1="8" x2={x} y2={FLOOR} stroke={inkSoft} strokeWidth="0.75" strokeDasharray="5 5" />
+      ))}
+
+      {/* ══ Zone 0: STRENGTH — barbell ══ */}
+      {/* Floor shadow */}
+      <ellipse cx="95" cy="175" rx="75" ry="4" fill="rgba(27,24,19,0.07)" />
+      {/* Shaft */}
+      <rect x="20" y="88" width="150" height="9" rx="4" fill={ink} />
+      {/* Collars */}
+      <rect x="42" y="82" width="7" height="21" rx="2" fill="rgba(27,24,19,0.40)" />
+      <rect x="141" y="82" width="7" height="21" rx="2" fill="rgba(27,24,19,0.40)" />
+      {/* Plates left — large then small */}
+      <rect x="5" y="66" width="24" height="53" rx="8" fill={plateC} stroke={ink} strokeWidth="1.3" />
+      <rect x="29" y="75" width="14" height="35" rx="6" fill="rgba(219,167,132,0.65)" stroke={ink} strokeWidth="1" />
+      {/* Plates right */}
+      <rect x="161" y="66" width="24" height="53" rx="8" fill={plateC} stroke={ink} strokeWidth="1.3" />
+      <rect x="147" y="75" width="14" height="35" rx="6" fill="rgba(219,167,132,0.65)" stroke={ink} strokeWidth="1" />
+
+      {/* ══ Zone 1: BAT RACK ══ */}
+      {/* Wall rack board */}
+      <rect x="208" y="58" width="154" height="11" rx="4" fill={wood} stroke={ink} strokeWidth="1.2" />
+      {/* Peg hooks */}
+      {[240, 285, 330].map(x => (
+        <rect key={x} x={x - 2} y="66" width="4" height="12" rx="2" fill={woodDark} stroke={ink} strokeWidth="0.7" />
+      ))}
+      {/* Bat 1 — knob + tapered body */}
+      <ellipse cx="240" cy="74" rx="5" ry="3" fill={wood} stroke={ink} strokeWidth="0.9" />
+      <path d="M 237 77 L 243 77 Q 252 128 250 162 Q 240 170 230 162 Q 228 128 237 77 Z" fill={wood} stroke={ink} strokeWidth="0.9" />
+      {/* Bat 2 */}
+      <ellipse cx="285" cy="74" rx="5" ry="3" fill={wood} stroke={ink} strokeWidth="0.9" />
+      <path d="M 282 77 L 288 77 Q 297 128 295 162 Q 285 170 275 162 Q 273 128 282 77 Z" fill={wood} stroke={ink} strokeWidth="0.9" />
+      {/* Bat 3 */}
+      <ellipse cx="330" cy="74" rx="5" ry="3" fill={wood} stroke={ink} strokeWidth="0.9" />
+      <path d="M 327 77 L 333 77 Q 342 128 340 162 Q 330 170 320 162 Q 318 128 327 77 Z" fill={wood} stroke={ink} strokeWidth="0.9" />
+      {/* Wood grain on center bat */}
+      <path d="M 285 92 C 284 122 283 148 282 162" fill="none" stroke="rgba(27,24,19,0.09)" strokeWidth="1" />
+
+      {/* ══ Zone 2: PITCHING — ball crossing home plate ══ */}
+      {/* Pitch path from mound to plate */}
+      <path d="M 475 32 Q 472 90 475 130" fill="none" stroke="rgba(173,197,215,0.70)" strokeWidth="1.8" strokeDasharray="5 4" strokeLinecap="round" />
+      {/* Motion trail — fading dots above ball */}
+      <circle cx="475" cy="72" r="8" fill="rgba(173,197,215,0.20)" />
+      <circle cx="475" cy="50" r="6" fill="rgba(173,197,215,0.13)" />
+      {/* Mound at top */}
+      <ellipse cx="475" cy="32" rx="14" ry="9" fill="rgba(210,158,108,0.45)" stroke={inkSoft} strokeWidth="0.9" />
+      {/* Rubber */}
+      <rect x="469" y="29" width="12" height="5" rx="2" fill="rgba(251,250,246,0.9)" stroke={inkSoft} strokeWidth="0.8" />
+      {/* Strike zone box */}
+      <rect x="458" y="90" width="34" height="52" rx="2" fill="none" stroke={inkSoft} strokeWidth="1.2" strokeDasharray="4 3" />
+      {/* Ball at plate */}
+      <circle cx="475" cy="130" r="12" fill="#FBFAF6" stroke="rgba(27,24,19,0.25)" strokeWidth="1.4" />
+      <path d="M 466 124 Q 475 118 484 124" fill="none" stroke="var(--seam,#C1443C)" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M 466 136 Q 475 142 484 136" fill="none" stroke="var(--seam,#C1443C)" strokeWidth="1.4" strokeLinecap="round" />
+      {/* Home plate (pentagon, top-down) */}
+      <path d="M 463 145 L 487 145 L 487 155 L 475 163 L 463 155 Z" fill="#FBFAF6" stroke={ink} strokeWidth="1.2" />
+
+      {/* ══ Zone 3: FIELDING — baseball diamond (top-down) ══ */}
+      {/* Outfield grass */}
+      <path d="M 665 160 L 578 72 Q 665 24 752 72 Z" fill="rgba(148,192,128,0.22)" stroke="none" />
+      {/* Infield dirt circle */}
+      <circle cx="665" cy="105" r="55" fill="rgba(210,158,108,0.18)" stroke="none" />
+      {/* Foul lines */}
+      <line x1="665" y1="160" x2="578" y2="72" stroke={ink} strokeWidth="1" opacity="0.45" />
+      <line x1="665" y1="160" x2="752" y2="72" stroke={ink} strokeWidth="1" opacity="0.45" />
+      {/* Outfield arc */}
+      <path d="M 578 72 Q 665 24 752 72" fill="none" stroke={inkSoft} strokeWidth="1.2" />
+      {/* Infield arc (dirt/grass edge) */}
+      <path d="M 612 105 A 75 75 0 0 1 718 105" fill="none" stroke={inkSoft} strokeWidth="1" />
+      {/* Diamond base paths */}
+      <polygon points="665,160 718,105 665,50 612,105" fill="rgba(148,192,128,0.18)" stroke={ink} strokeWidth="1.4" />
+      {/* Pitcher's mound */}
+      <circle cx="665" cy="105" r="9" fill="rgba(210,158,108,0.50)" stroke={ink} strokeWidth="0.9" />
+      {/* Bases: 1st, 2nd, 3rd */}
+      {([[718, 105], [665, 50], [612, 105]] as [number, number][]).map(([bx, by], i) => (
+        <rect key={i} x={bx - 5} y={by - 5} width="10" height="10" rx="2"
+          fill="#FBFAF6" stroke={ink} strokeWidth="1"
+          transform={`rotate(45 ${bx} ${by})`} />
+      ))}
+      {/* Home plate (pentagon) */}
+      <path d="M 656 153 L 674 153 L 674 162 L 665 168 L 656 162 Z" fill="#FBFAF6" stroke={ink} strokeWidth="1.1" />
+
+      {/* ══ Zone overlays: glow + click targets ══ */}
+      {CLUBHOUSE_DATA.map((z, i) => {
+        const isActive = i === activeIdx;
+        const isHovered = i === hoveredIdx;
+        return (
+          <g key={z.slug}>
+            {(isActive || isHovered) && (
+              <rect
+                x={i * ZW + 2} y={2}
+                width={ZW - 4} height={FLOOR - 4}
+                rx={6}
+                fill={z.glow}
+                opacity={isActive ? 0.18 : 0.10}
+                style={{ pointerEvents: 'none' }}
+              />
+            )}
+            <rect
+              x={i * ZW} y={0}
+              width={ZW} height={FLOOR}
+              fill="transparent"
+              style={{ cursor: 'pointer' }}
+              onClick={() => onZoneClick(i)}
+              onMouseEnter={() => onZoneEnter(i)}
+              onMouseLeave={onZoneLeave}
+            />
+          </g>
+        );
+      })}
+
+      {/* ══ Hotspot pulse dots ══ */}
+      {([
+        { cx: 95, cy: 92 },   // barbell center
+        { cx: 285, cy: 128 }, // center bat
+        { cx: 475, cy: 130 }, // ball at plate
+        { cx: 665, cy: 105 }, // mound/diamond center
+      ] as { cx: number; cy: number }[]).map(({ cx, cy }, i) => (
+        <motion.circle
+          key={i}
+          cx={cx} cy={cy} r={4}
+          fill={i === activeIdx ? CLUBHOUSE_DATA[i].glow : 'rgba(251,250,246,0.85)'}
+          stroke={ink} strokeWidth={1}
+          animate={reduce ? undefined : (i === activeIdx
+            ? { scale: [1, 1.3, 1] }
+            : { scale: [1, 1.6, 1], opacity: [0.7, 0.3, 0.7] }
+          )}
+          transition={{ duration: i === activeIdx ? 1.5 : 2.4, repeat: Infinity, delay: i * 0.4 }}
+        />
+      ))}
+    </svg>
+  );
+}
+
+export function ClubhouseNav({
+  onSelect,
+  counts,
+}: {
+  onSelect: (slug: string) => void;
+  counts?: Record<string, number>;
+}) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [paused, setPaused] = useState(false);
+  const reduce = useReducedMotion();
+
+  useEffect(() => {
+    if (paused || reduce) return;
+    const t = setInterval(() => setActiveIdx(i => (i + 1) % CLUBHOUSE_DATA.length), 5000);
+    return () => clearInterval(t);
+  }, [paused, reduce]);
+
+  const zone = CLUBHOUSE_DATA[activeIdx];
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => { setPaused(false); setHoveredIdx(null); }}
+    >
+      <MeshCard className="relative overflow-hidden">
+        {/* Per-zone background tint */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`cbg-${activeIdx}`}
+            aria-hidden
+            className="absolute inset-0 pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6 }}
+            style={{
+              background: `radial-gradient(ellipse 50% 70% at ${activeIdx * 25 + 12.5}% 48%, ${zone.accent}, transparent 70%)`,
+            }}
+          />
+        </AnimatePresence>
+
+        {/* Illustration + tab strip */}
+        <div className="relative px-4 pt-8 md:px-8">
+          <ClubhouseIllustration
+            activeIdx={activeIdx}
+            hoveredIdx={hoveredIdx}
+            onZoneClick={setActiveIdx}
+            onZoneEnter={setHoveredIdx}
+            onZoneLeave={() => setHoveredIdx(null)}
+          />
+          <div className="grid grid-cols-4" style={{ borderBottom: '1px solid var(--line)' }}>
+            {CLUBHOUSE_DATA.map((z, i) => (
+              <button
+                key={z.slug}
+                type="button"
+                onClick={() => setActiveIdx(i)}
+                className="py-2.5 text-center text-[10px] tracking-widest uppercase transition-colors"
+                style={{
+                  color: i === activeIdx ? 'var(--ink)' : 'var(--ink-faint)',
+                  borderBottom: i === activeIdx ? '2px solid var(--ink)' : '2px solid transparent',
+                  marginBottom: '-1px',
+                }}
+              >
+                {z.discipline}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Text panel */}
+        <div className="px-6 pt-5 pb-14 md:px-10">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`ctxt-${activeIdx}`}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.38, ease: EASE_OUT }}
+              className="flex flex-col sm:flex-row sm:items-end justify-between gap-5"
+            >
+              <div>
+                <Eyebrow>
+                  {zone.discipline}{counts && counts[zone.slug] ? ` · ${counts[zone.slug]}` : ''}
+                </Eyebrow>
+                <h3 className="display-md mt-3 mb-2" style={{ whiteSpace: 'pre-line' }}>
+                  {zone.tagline}
+                </h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-soft)', maxWidth: 400 }}>
+                  {zone.desc}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onSelect(zone.slug)}
+                className="btn-primary self-start sm:self-auto shrink-0 flex items-center gap-2"
+              >
+                Browse {zone.discipline} coaches
+                <ArrowRight size={15} />
+              </button>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        {/* Progress dots */}
+        <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-2.5 pb-4">
+          {CLUBHOUSE_DATA.map((z, i) => (
+            <button
+              key={z.slug}
+              type="button"
+              onClick={() => setActiveIdx(i)}
+              aria-label={`View ${z.discipline}`}
+              className="rounded-full transition-all duration-300"
+              style={{
+                width: i === activeIdx ? 22 : 6,
+                height: 6,
+                background: i === activeIdx ? 'var(--ink)' : 'var(--line-strong)',
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Auto-advance bar */}
+        {!paused && !reduce && (
+          <motion.div
+            key={`cprog-${activeIdx}`}
+            aria-hidden
+            className="absolute bottom-0 left-0 h-[2px] rounded-full"
+            style={{ background: 'var(--ink)', originX: 0 }}
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ duration: 5, ease: 'linear' }}
+          />
+        )}
+      </MeshCard>
+    </div>
+  );
+}
+
 /* ── Platform Slideshow (exported) ─────────────────────────────── */
 export function PlatformSlideshow({
   onSelect,

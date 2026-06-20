@@ -11,7 +11,7 @@ import AnimatedCounter from '../components/AnimatedCounter';
 import { SPRING, EASE_OUT } from '../tokens';
 import { useI18n } from '../i18n';
 import {
-  BaseballField, Baseball, Bat, MeshCard, FloatingSpheres, Eyebrow, PlatformSlideshow,
+  BaseballField, Baseball, Bat, MeshCard, FloatingSpheres, Eyebrow, ClubhouseNav,
 } from '../components/visuals';
 import { MOCK_COACHES } from './CoachesPage';
 
@@ -493,7 +493,7 @@ export default function LandingPage() {
               </p>
             </Reveal>
             <Reveal delay={0.1}>
-              <PlatformSlideshow
+              <ClubhouseNav
                 onSelect={(slug) => navigate(`/coaches?specialty=${slug}`)}
                 counts={SPECIALTY_COUNTS}
               />
