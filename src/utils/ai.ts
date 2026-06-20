@@ -1,12 +1,7 @@
-// ─── AI helpers (Gemini) with a local fallback ──────────────────────────────
-// Coach matching for the "describe your goals" finder. Uses Gemini when
-// available (same key the support chat uses), and falls back to a deterministic
-// keyword ranking so the feature always returns useful matches.
-
-import { GoogleGenAI } from '@google/genai';
+import Groq from 'groq-sdk';
 import type { CoachProfile } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+const groq = new Groq({ apiKey: import.meta.env.VITE_GROQ_API_KEY, dangerouslyAllowBrowser: true });
 
 export interface CoachMatch { id: string; reason: string; }
 
@@ -24,7 +19,6 @@ function localReason(c: CoachProfile): string {
   return `${cap(c.specialty)} specialist${skills ? ` — ${skills}` : ''} · ${c.rating?.toFixed(1)}★`;
 }
 
-/** Deterministic keyword/skill ranking — no network. */
 function localMatch(query: string, coaches: CoachProfile[], limit: number): CoachMatch[] {
   const q = query.toLowerCase();
   const scored = coaches.map(c => {
@@ -39,7 +33,7 @@ function localMatch(query: string, coaches: CoachProfile[], limit: number): Coac
       if (words.some(w => q.includes(w))) score += 2;
     }
     if (c.city && q.includes(c.city.toLowerCase())) score += 2;
-    score += (c.rating || 0) * 0.2; // gentle tiebreaker
+    score += (c.rating || 0) * 0.2;
     return { c, score };
   });
   const anyMatch = scored.some(s => s.score >= 4);
@@ -56,7 +50,6 @@ export async function matchCoaches(
 ): Promise<CoachMatch[]> {
   if (!coaches.length) return [];
 
-  // Try Gemini first; fall back to local ranking on any failure.
   try {
     const catalog = coaches.map(c => ({
       id: c.id, name: c.name, specialty: c.specialty,
@@ -79,17 +72,19 @@ Return ONLY a JSON array like:
 [{"id":"<coach id from the list>","reason":"<one short sentence, max 18 words, why they fit>"}]
 Use only ids that appear in the list. No prose outside the JSON.`;
 
-    const res = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: prompt,
-      config: { responseMimeType: 'application/json' },
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' },
     });
 
-    const raw = (res.text || '').trim().replace(/^```json\s*/i, '').replace(/```$/, '').trim();
+    const raw = (response.choices[0]?.message?.content || '').trim();
+    // model may return {"matches": [...]} or just [...]
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
+    const arr = Array.isArray(parsed) ? parsed : (parsed.matches || parsed.coaches || Object.values(parsed)[0]);
+    if (Array.isArray(arr)) {
       const validIds = new Set(coaches.map(c => c.id));
-      const out = parsed
+      const out = arr
         .filter((x: any) => x && x.id != null && validIds.has(String(x.id)))
         .map((x: any) => ({ id: String(x.id), reason: String(x.reason || '') }))
         .slice(0, limit);
@@ -97,7 +92,7 @@ Use only ids that appear in the list. No prose outside the JSON.`;
     }
     return localMatch(query, coaches, limit);
   } catch (e) {
-    console.warn('[matchCoaches] Gemini unavailable, using local ranking:', e);
+    console.warn('[matchCoaches] Groq unavailable, using local ranking:', e);
     return localMatch(query, coaches, limit);
   }
 }

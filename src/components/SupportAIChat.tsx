@@ -1,25 +1,39 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GoogleGenAI } from "@google/genai";
+import Groq from 'groq-sdk';
 import { Send, Bot, User, Loader2, MessageSquare, X, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MOCK_COACHES } from '../pages/CoachesPage';
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+const groq = new Groq({ apiKey: import.meta.env.VITE_GROQ_API_KEY, dangerouslyAllowBrowser: true });
 
 const COACH_ROSTER = MOCK_COACHES.map(c =>
   `#${c.id} ${c.name} — ${c.specialty}${c.secondary_specialty ? '/' + c.secondary_specialty : ''}, $${c.price_per_session}/session, ${c.city}`
 ).join('\n');
 
 const SYSTEM_INSTRUCTION = `You are the CoachGo AI Concierge.
-CoachGo is the discovery and connection platform for specialized baseball coaching in San Diego — think of it as a personal LinkedIn for baseball coaching.
-Your goal is to help players discover the right coach AND take action for them.
+CoachGo is a discovery and connection platform for specialized baseball coaching in San Diego — a personal LinkedIn for baseball coaching.
+Your goal is to help players discover the right coach and take action.
+
+Pages & Features:
+- Home (/): landing page with platform overview and how it works.
+- Coaches (/coaches): browse and filter all coaches by specialty, location, price, and session type. Includes an AI match tool where players describe their goals.
+- Coach Profile (/coaches/<id>): full profile with bio, credentials, skills, pricing, and a Connect button.
+- Dashboard (/dashboard): signed-in users see their connections and activity (requires login).
+- Messages (/messages): in-app messaging between coaches and players (requires login).
+- Profile (/profile): signed-in players can view and edit their profile (requires login).
+- About (/about): info about CoachGo and the founder.
+- Help Center (/help): FAQs and help articles.
+- Contact (/contact): contact form.
 
 Key Information:
 - Specialties: Hitting, Pitching, Fielding, Strength Training.
 - Mission: Help players discover specialized coaches, connect with them, and train their way.
 - Founder: Yuvraj Jindal, a Del Norte High School Varsity baseball player.
-- How it works: players browse coaches, click Connect, and share their contact info. The coach then reaches out directly to plan training. Coaches offer 1-on-1 and/or group sessions (shown on each profile). Scheduling and payment are arranged directly between the player and coach — there is no in-app booking or payment.
+- How it works: Players browse coaches, click Connect on a coach's profile, and share their contact info. The coach reaches out directly to plan training. Coaches offer 1-on-1 and/or group sessions (shown on each profile). Scheduling and payment happen directly between player and coach — there is no in-app booking or payment system.
+- To connect with a coach: go to their profile page and click the Connect button.
+- To find coaches by skill: use the Coaches page filters or the AI match tool (the Sparkles/wand icon on the Coaches page).
+- Login/signup is at /auth. An account is required for Dashboard, Messages, and Profile.
 - Contact: coachgonline@gmail.com
 
 Coaches you can recommend (use the id in actions):
@@ -32,6 +46,9 @@ Valid paths:
 - /coaches  (browse all)
 - /coaches?specialty=hitting  (or pitching, fielding, strength)
 - /coaches/<id>  (open a specific coach's profile, where they can tap Connect)
+- /auth  (sign up or log in)
+- /help  (help center)
+- /contact  (contact form)
 Rules: include at most one token, only when useful; write a natural sentence first; NEVER mention or explain the token.
 
 Tone: professional, encouraging, knowledgeable about baseball. Keep responses to 2-3 sentences.
@@ -66,21 +83,23 @@ export default function SupportAIChat() {
 
     const userMessage = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    const next = [...messages, { role: 'user' as const, text: userMessage }];
+    setMessages(next);
     setIsLoading(true);
 
     try {
-      const chat = ai.chats.create({
-        model: "gemini-2.0-flash",
-        config: { systemInstruction: SYSTEM_INSTRUCTION },
-        history: messages.map(m => ({
-          role: m.role,
-          parts: [{ text: m.text }]
-        }))
+      const response = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: SYSTEM_INSTRUCTION },
+          // skip index 0 (the initial UI greeting) — only real conversation turns
+          ...next.slice(1).map(m => ({
+            role: m.role === 'user' ? 'user' as const : 'assistant' as const,
+            content: m.text,
+          })),
+        ],
       });
-
-      const response = await chat.sendMessage({ message: userMessage });
-      const raw = response.text || "I'm sorry, I couldn't process that. Please try again.";
+      const raw = response.choices[0]?.message?.content || "I'm sorry, I couldn't process that. Please try again.";
       const m = raw.match(ACTION_RE);
       const text = (m ? raw.replace(m[0], '') : raw).trim();
       const action = m ? { label: m[1].trim(), path: m[2].trim() } : undefined;

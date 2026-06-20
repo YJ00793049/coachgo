@@ -11,7 +11,7 @@ import AnimatedCounter from '../components/AnimatedCounter';
 import { SPRING, EASE_OUT } from '../tokens';
 import { useI18n } from '../i18n';
 import {
-  BaseballField, Baseball, Bat, MeshCard, FloatingSpheres, Eyebrow, InteractiveBaseballField,
+  BaseballField, Baseball, Bat, MeshCard, FloatingSpheres, Eyebrow, PlatformSlideshow,
 } from '../components/visuals';
 import { MOCK_COACHES } from './CoachesPage';
 
@@ -482,34 +482,23 @@ export default function LandingPage() {
         {/* ── COACH STRIP ── */}
         <CoachStrip />
 
-        {/* ── SEE IT IN ACTION ── */}
+        {/* ── THE PLATFORM ── */}
         <section className="py-20 md:py-28 relative">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <Reveal>
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <Reveal className="text-center">
               <Eyebrow>The platform</Eyebrow>
-              <h2 className="display-lg mt-5 mb-5">See CoachGo in action</h2>
+              <h2 className="display-lg mt-5 mb-5">One platform. Every discipline.</h2>
               <p className="text-lg leading-relaxed max-w-xl mx-auto mb-10" style={{ color: 'var(--ink-soft)' }}>
-                From discovering specialists to connecting and training — a calm, focused way to get better at baseball.
+                Whether you're chasing velocity, exit speed, sharper footwork, or raw strength — find the right specialist and connect in under a minute.
               </p>
             </Reveal>
             <Reveal delay={0.1}>
-              <MeshCard className="relative aspect-[16/10] md:aspect-[16/8] p-8 md:p-14">
-                <FloatingSpheres spheres={[
-                  { size: 120, color: 'rgba(185,203,166,0.6)', top: '6%', left: '4%', drift: 20 },
-                  { size: 100, color: 'rgba(173,197,215,0.6)', top: '12%', right: '8%', delay: 1.2, drift: 18 },
-                  { size: 80, color: 'rgba(219,167,132,0.55)', bottom: '8%', left: '22%', delay: 0.6, drift: 16 },
-                ]} />
-                <div className="relative h-full w-full">
-                  <InteractiveBaseballField
-                    onSelect={(slug) => navigate(`/coaches?specialty=${slug}`)}
-                    counts={SPECIALTY_COUNTS}
-                    className="h-full w-full"
-                  />
-                </div>
-              </MeshCard>
-              <p className="mt-6 text-sm" style={{ color: 'var(--ink-faint)' }}>Tap a zone to explore that discipline.</p>
-              <div className="mt-6 flex justify-center">
-                <Link to="/coaches" className="btn-primary"><Search size={17} /> Browse all coaches</Link>
+              <PlatformSlideshow
+                onSelect={(slug) => navigate(`/coaches?specialty=${slug}`)}
+                counts={SPECIALTY_COUNTS}
+              />
+              <div className="mt-8 flex justify-center">
+                <Link to="/coaches" className="btn-secondary"><Search size={16} /> Browse all coaches</Link>
               </div>
             </Reveal>
           </div>
