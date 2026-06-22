@@ -140,9 +140,11 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Founder */}
+        {/* Team */}
         <section className="py-32 px-4">
-          <div className="max-w-5xl mx-auto">
+          <div className="max-w-5xl mx-auto space-y-28">
+
+            {/* Yuvi */}
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -150,14 +152,10 @@ export default function AboutPage() {
               transition={{ ...SPRING }}
               className="flex flex-col md:flex-row items-center gap-16"
             >
-              {/* Premium Founder Avatar */}
               <div className="shrink-0 relative">
-                {/* Outer rotating glow ring */}
                 <motion.div
                   className="absolute -inset-[3px] rounded-3xl"
-                  style={{
-                    background: '#16130E',
-                  }}
+                  style={{ background: '#16130E' }}
                   animate={{ rotate: 360 }}
                   transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
                 />
@@ -180,14 +178,12 @@ export default function AboutPage() {
                 </Avatar>
               </div>
 
-              {/* Content */}
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.2em] mb-3" style={{ color: '#1B1813' }}>Meet the Founder</p>
                 <h2 className="font-display text-4xl text-ink mb-1">Yuvraj Jindal</h2>
                 <p className="text-sm font-medium mb-8 uppercase tracking-widest" style={{ color: 'rgba(27,24,19,0.3)' }}>
                   Founder · Del Norte HS Varsity Baseball
                 </p>
-
                 <div className="space-y-5 text-base leading-relaxed">
                   <p style={{ color: 'rgba(27,24,19,0.55)', fontSize: '1.15rem', lineHeight: '1.8' }}>
                     <span className="text-ink font-semibold">"I've been on the field since I was 7 years old.</span>{' '}
@@ -209,8 +205,73 @@ export default function AboutPage() {
                 </div>
               </div>
             </motion.div>
+
+            {/* Ethan */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-80px' }}
+              transition={{ ...SPRING }}
+              className="flex flex-col md:flex-row-reverse items-center gap-16"
+            >
+              <div className="shrink-0 relative">
+                <motion.div
+                  className="absolute -inset-[3px] rounded-3xl"
+                  style={{ background: '#16130E' }}
+                  animate={{ rotate: -360 }}
+                  transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+                />
+                <Avatar className="w-48 h-48 md:w-[200px] md:h-[200px] rounded-3xl relative" style={{ zIndex: 1 }}>
+                  <AvatarImage
+                    src="/ethan.jpg"
+                    alt="Ethan Wong"
+                    className="rounded-3xl object-cover w-full h-full"
+                    style={{ objectPosition: 'center 15%' }}
+                  />
+                  <AvatarFallback
+                    className="rounded-3xl text-5xl font-display font-bold text-ink"
+                    style={{
+                      background: '#16130E',
+                      boxShadow: '0 0 40px rgba(27,24,19,0.4), inset 0 1px 0 rgba(27,24,19,0.2)',
+                    }}
+                  >
+                    EW
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] mb-3" style={{ color: '#1B1813' }}>Meet the Engineer</p>
+                <h2 className="font-display text-4xl text-ink mb-1">Ethan Wong</h2>
+                <p className="text-sm font-medium mb-8 uppercase tracking-widest" style={{ color: 'rgba(27,24,19,0.3)' }}>
+                  Founding Engineer · Lead Developer · Del Norte HS Varsity Baseball
+                </p>
+                <div className="space-y-5 text-base leading-relaxed">
+                  <p style={{ color: 'rgba(27,24,19,0.55)', fontSize: '1.15rem', lineHeight: '1.8' }}>
+                    <span className="text-ink font-semibold">"Baseball has been part of my life for as long as I can remember.</span>{' '}
+                    From my first little league game to competing on Varsity at Del Norte High School, the sport has always been
+                    there. And so has the same recurring frustration — tracking down the right coach was always a
+                    word-of-mouth guessing game with no real system behind it."
+                  </p>
+                  <p style={{ color: 'rgba(27,24,19,0.55)', fontSize: '1.15rem', lineHeight: '1.8' }}>
+                    "When Yuvi brought the idea to me, I immediately understood the problem — I'd lived it.{' '}
+                    <span className="text-ink font-semibold">As a developer, I knew this was completely solvable.
+                    The tools existed. Nobody had just put them together the right way.</span>"
+                  </p>
+                  <p style={{ color: 'rgba(27,24,19,0.55)', fontSize: '1.15rem', lineHeight: '1.8' }}>
+                    "<span className="text-ink font-semibold">So I helped build it.</span>{' '}
+                    Every feature on this platform exists because a player like me needed it. We built CoachGo
+                    for the kid who's serious about getting better and just needs to know where to look."
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+
           </div>
         </section>
+
+
+        
 
         {/* Stats */}
         <section className="py-20" style={{ background: 'rgba(27,24,19,0.04)', borderTop: '1px solid rgba(27,24,19,0.06)', borderBottom: '1px solid rgba(27,24,19,0.06)' }}>
