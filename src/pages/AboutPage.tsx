@@ -223,7 +223,7 @@ export default function AboutPage() {
                 />
                 <Avatar className="w-48 h-48 md:w-[200px] md:h-[200px] rounded-3xl relative" style={{ zIndex: 1 }}>
                   <AvatarImage
-                    src="/ethan.jpg"
+                    src="/ethan.jpeg"
                     alt="Ethan Wong"
                     className="rounded-3xl object-cover w-full h-full"
                     style={{ objectPosition: 'center 15%' }}
